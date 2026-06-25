@@ -1,0 +1,56 @@
+---
+import { getCollection, render } from 'astro:content';
+import Layout from '../layouts/Layout.astro';
+
+export async function getStaticPaths() {
+  const all = await getCollection('sources');
+  return all
+    .filter((entry) => entry.id !== 'index')
+    .map((entry) => ({
+      params: { slug: entry.id },
+      props: { entry },
+    }));
+}
+
+const { entry } = Astro.props;
+const { Content } = await render(entry);
+const fm = entry.data;
+const title = fm.title || entry.id;
+
+const metaRows: Array<[string, string, boolean?]> = [];
+if (fm.url) metaRows.push(['Source', fm.url, true]);
+if (fm.type) metaRows.push(['Type', fm.type]);
+if (fm.fetched) metaRows.push(['Fetched', String(fm.fetched)]);
+if (fm.status) metaRows.push(['Status', fm.status]);
+if (fm.mvp_status) metaRows.push(['MVP status', fm.mvp_status]);
+if (fm.parent) metaRows.push(['Parent', fm.parent]);
+if (fm.notion_status) metaRows.push(['Notion status', fm.notion_status]);
+if (fm.notion_last_updated) metaRows.push(['Notion updated', fm.notion_last_updated]);
+---
+
+<Layout title={title} currentSlug={entry.id}>
+  <article class="doc">
+    <header class="doc-header">
+      <h1>{title}</h1>
+      {metaRows.length > 0 && (
+        <dl class="doc-meta">
+          {metaRows.map(([label, value, isLink]) => (
+            <>
+              <dt>{label}</dt>
+              <dd>
+                {isLink ? (
+                  <a href={value} target="_blank" rel="noopener noreferrer">{value}</a>
+                ) : (
+                  value
+                )}
+              </dd>
+            </>
+          ))}
+        </dl>
+      )}
+    </header>
+    <div class="doc-body">
+      <Content />
+    </div>
+  </article>
+</Layout>

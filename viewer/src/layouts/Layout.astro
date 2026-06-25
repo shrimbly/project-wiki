@@ -1,0 +1,62 @@
+---
+import { sidebarSections } from '../lib/sidebar';
+import { site } from '../lib/site.config';
+import '../styles/global.css';
+
+interface Props {
+  title: string;
+  currentSlug: string;
+}
+
+const { title, currentSlug } = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title} — {site.title}</title>
+  </head>
+  <body data-doc-slug={currentSlug}>
+    <div class="app">
+      <aside class="sidebar">
+        <div class="sidebar-header">
+          <h1 class="brand">{site.title}</h1>
+          <p class="brand-sub">{site.subtitle}</p>
+        </div>
+        <nav>
+          {sidebarSections.length === 0 && (
+            <div class="nav-empty">No pages yet — run the wiki skills, then refresh.</div>
+          )}
+          {sidebarSections.map((section) => (
+            <section class="nav-section">
+              <h2 class="nav-section-title">{section.title}</h2>
+              <ul>
+                {section.items.map((item) => {
+                  const href = item.slug === 'index' ? '/' : `/${item.slug}/`;
+                  const isActive = item.slug === currentSlug;
+                  return (
+                    <li>
+                      <a href={href} class={`nav-link${isActive ? ' active' : ''}`}>
+                        <span>{item.label}</span>
+                        {item.badge && <span class="nav-badge">{item.badge}</span>}
+                      </a>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          ))}
+        </nav>
+      </aside>
+      <main class="main">
+        <slot />
+      </main>
+    </div>
+    <script>
+      import '../scripts/annotations.js';
+      import '../scripts/mermaid.js';
+    </script>
+  </body>
+</html>

@@ -1,0 +1,21 @@
+---
+import { getEntry, render } from 'astro:content';
+import Layout from '../layouts/Layout.astro';
+
+const entry = await getEntry('sources', 'index');
+if (!entry) throw new Error('sources/index.md not found — run `npm run sync`');
+
+const { Content } = await render(entry);
+const title = entry.data.title || 'Sources Index';
+---
+
+<Layout title={title} currentSlug="index">
+  <article class="doc">
+    <header class="doc-header">
+      <h1>{title}</h1>
+    </header>
+    <div class="doc-body">
+      <Content />
+    </div>
+  </article>
+</Layout>
