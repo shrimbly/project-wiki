@@ -72,14 +72,17 @@ a:hover { text-decoration: underline; }
 /* ---------- Sidebar search ---------- */
 .sidebar-search-wrap {
   position: relative;
-  padding: 12px 24px 4px;
+  /* margin (not padding) so this box hugs the input exactly — that lets the
+     hint center on the field via top:50% instead of on a padded wrapper. */
+  margin: 12px 24px 4px;
 }
 .sidebar-search {
+  display: block;
   width: 100%;
   box-sizing: border-box;
   font: inherit;
   font-size: 13px;
-  padding: 6px 26px 6px 10px;
+  padding: 6px 30px 6px 10px; /* right room for the / hint */
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
   background: var(--bg);
@@ -93,16 +96,23 @@ a:hover { text-decoration: underline; }
 }
 .sidebar-search-hint {
   position: absolute;
-  right: 32px;
+  right: 6px;
   top: 50%;
   transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  box-sizing: border-box;
+  padding: 0 4px;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 10px;
+  line-height: 1;
   color: var(--text-faint);
-  border: 1px solid var(--border-strong);
+  background: var(--bg-doc-meta);
+  border: 1px solid var(--border);
   border-radius: 4px;
-  padding: 0 5px;
-  line-height: 16px;
   pointer-events: none;
 }
 .sidebar-search:focus + .sidebar-search-hint,
