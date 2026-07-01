@@ -1,6 +1,6 @@
 ---
 name: new-project-wiki
-description: "Downloads a fork of the public project-wiki template repo (git clone of github.com/shrimbly/project-wiki) into a NEW sibling directory of the current project, then runs its setup. Use when the user wants to start a fresh agent-maintained wiki / knowledge base — 'spin up a new project wiki', 'fork the project wiki for X', 'start a new knowledge base', 'new wiki project'. Rewires git (origin→upstream) and runs the interactive wiki-setup flow."
+description: "Start a project-wiki — an agent-maintained knowledge base that turns scattered material (documents, meeting notes, web pages, research) into a durable, cross-linked wiki the agent builds, keeps current, and can answer questions from. This skill creates a new project-wiki in its own folder next to your current project and walks you through setting it up. Use when someone wants to start a fresh wiki or knowledge base for a topic — e.g. 'start a new project wiki', 'set up a knowledge base for X', 'new wiki project'."
 license: MIT
 metadata:
   homepage: https://github.com/shrimbly/project-wiki
@@ -8,21 +8,30 @@ metadata:
 
 # new-project-wiki
 
-> ⚠️ **What this does:** it runs `git clone https://github.com/shrimbly/project-wiki`
-> — i.e. it **downloads a fork of the public `project-wiki` template repo** into a new
-> folder next to your current project. If you don't trust that repo, review it first.
-> It only clones a public GitHub repo and runs setup locally; it does not push
-> anywhere or touch your current project.
+## Why a project-wiki?
 
-Start a brand-new [project-wiki](https://github.com/shrimbly/project-wiki) by
-forking the canonical template into a **sibling directory** of wherever you're
-working, then running its setup flow. Works from any project (this skill is
-installed globally).
+A **project-wiki** turns scattered, messy inputs — documents, meeting transcripts,
+web pages, design files, pasted notes — into a durable, cross-linked knowledge base
+that an agent builds and keeps current. Every source is captured faithfully, then
+synthesized into interlinked pages — the key entities, concepts, decisions, and open
+questions — that you can browse and comment on in a local viewer. Once it exists, you
+mostly just ask the agent questions and it stitches answers across the whole thing.
+It's a good fit for designing a system, researching a domain, capturing decisions and
+their rationale, or getting people up to speed on something complex.
 
-**Template (canonical, pure):** `https://github.com/shrimbly/project-wiki`
-— a three-layer, agent-maintained knowledge base (faithful `sources/` → AI
-synthesis `wiki/` → schema `CLAUDE.md`), with a local Astro viewer and its own
-`wiki-*` skills. To fork a different template, change `TEMPLATE_URL` below.
+## What this skill does
+
+Sets up a brand-new project-wiki in its own folder next to your current project, then
+runs an interactive setup: it names and configures the wiki, brands its viewer, and
+optionally pulls in any starting material you already have — so you end with a
+ready-to-use knowledge base.
+
+> **Heads-up:** this downloads a copy of the public `project-wiki` starter repo into a
+> new folder beside your current project and sets it up there. It only reads a public
+> GitHub repo and works inside the new folder — it never changes or pushes your current
+> project.
+
+The starter repo it pulls from (point this at your own copy if you have one):
 
 ```
 TEMPLATE_URL = https://github.com/shrimbly/project-wiki
@@ -50,7 +59,7 @@ over an existing directory).
 You only need the name here — the description, audience, deliverable, and starting
 material are gathered by the setup flow in step 5. Don't ask for them twice.
 
-## 3. Fork the template into the sibling directory
+## 3. Clone the starter into the sibling directory
 
 ```bash
 git clone "$TEMPLATE_URL" "$PARENT/<slug>"
@@ -62,10 +71,10 @@ Renaming `origin` → `upstream` keeps the link to the template (so improvements
 be pulled later with `git fetch upstream && git merge upstream/main`) and leaves
 the new project ready for the user to wire their own `origin` when they publish.
 
-**Sanity-check the clone is the pure template** before proceeding: `README.md`
-starts with `# project-wiki`, and `wiki/` contains only `index.md`, `overview.md`,
-`open-questions.md`. If it's anything else, stop and report — do not run setup on a
-non-pure clone.
+**Sanity-check the clone looks like a fresh project-wiki** before proceeding: its
+`README.md` starts with `# project-wiki`, and `wiki/` contains only `index.md`,
+`overview.md`, and `open-questions.md`. If it's anything else, stop and report rather
+than running setup on it.
 
 The directory is already named `<slug>`, so there's no manual rename to do. Leave
 internal branding (viewer title, the `CLAUDE.md` Project block, seed pages) to the
