@@ -37,6 +37,31 @@ Skills live in `.claude/skills/`. Invoke by name, or just describe the task. Eac
 | `/wiki-query` | Ask the wiki a question; non-trivial answers get filed back. |
 | `/wiki-lint` | Health-check: contradictions, stale claims, orphans, missing links. |
 | `/wiki-diagram` | Keep the mermaid model diagram(s) in sync with the wiki. |
+| `/new-project-wiki` | Fork this template into a new sibling project and run setup. See [Starting a new project](#starting-a-new-project). |
+
+## Starting a new project
+
+This repo ships a **`/new-project-wiki`** skill that forks this template into a new
+sibling directory, points the new project's `upstream` back here, and runs
+`/wiki-setup` — spinning up a fresh knowledge base in one step.
+
+It works whenever this repo is open in [Claude Code](https://claude.com/claude-code).
+To make it available from *any* project, install it globally — and if you forked this
+template to your own account, point it at your fork:
+
+```bash
+# 1. Install globally so `/new-project-wiki` works from anywhere:
+cp -R .claude/skills/new-project-wiki ~/.claude/skills/
+#    (or symlink to keep it in sync with this repo:
+#     ln -s "$(pwd)/.claude/skills/new-project-wiki" ~/.claude/skills/new-project-wiki )
+
+# 2. If you forked this template, edit the TEMPLATE_URL line near the top of
+#    ~/.claude/skills/new-project-wiki/SKILL.md to point at YOUR fork.
+```
+
+The other `wiki-*` skills need no setup — they're project-scoped and load
+automatically whenever the repo is open in Claude Code. For non-Claude agents, every
+`SKILL.md` is a plain runbook and `AGENTS.md` points the way.
 
 ## Viewer
 
