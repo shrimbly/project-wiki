@@ -46,15 +46,24 @@ ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"   # current project r
 PARENT="$(dirname "$ROOT")"                                   # sibling location
 ```
 
-## 2. Get the new project's name (interactive)
+## 2. Name the wiki (interactive)
 
-Ask the user for the project name (e.g. "Billing System Redesign"). Derive a
-filesystem-safe **slug** (kebab-case, lowercase — e.g. `billing-system-redesign`);
-that's the new directory name. The destination is `$PARENT/<slug>`.
+Ask what the wiki is about — usually the project or topic it will document
+(e.g. "Billing System Redesign").
 
-Confirm the full destination path with the user before creating anything. If
-`$PARENT/<slug>` already exists, stop and ask for a different name (never clone
-over an existing directory).
+**Encourage naming it `<Project> Wiki` — with "wiki" on the end.** This folder is the
+*wiki for* the project, not the project itself, so the name should keep the two
+distinct (you don't want a `billing-system-redesign` wiki repo sitting next to the
+actual `billing-system-redesign` project and getting confused for it). So:
+
+- **Wiki name:** `<Project> Wiki` — e.g. "Billing System Redesign Wiki".
+- **Directory slug:** kebab-case with a `-wiki` suffix — e.g. `billing-system-redesign-wiki`.
+  That's the new directory name; the destination is `$PARENT/<slug>`.
+
+If the name the user gives already ends in "wiki", don't double it up. Confirm the
+final name and the full destination path before creating anything. If `$PARENT/<slug>`
+already exists, stop and ask for a different name (never clone over an existing
+directory).
 
 You only need the name here — the description, audience, deliverable, and starting
 material are gathered by the setup flow in step 5. Don't ask for them twice.
