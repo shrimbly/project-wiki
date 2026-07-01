@@ -19,22 +19,33 @@ project's identity and starting material, then writing it into the repo. Read
 - `ls annotations/*.json 2>/dev/null` and read any non-empty ones — unlikely on a
   fresh repo, but check.
 
-## 2. Gather the essentials (interactive)
+## 2. Gather the essentials — one question at a time (interactive)
 
-Collect these. Use `AskUserQuestion` for anything with discrete choices; ask for
-free-text descriptions conversationally. Don't over-ask — infer sensible defaults
-and confirm rather than interrogating.
+Ask for the items below **one at a time**: a single question, wait for the answer,
+then the next. **Do not present them as one numbered block** — this is a short
+onboarding conversation, not a form. Use a separate prompt per question (one
+`AskUserQuestion` call per choice-based question; a plain conversational message for
+the free-text description). Offer a sensible default with each so the user can just
+accept it, and infer whatever you can rather than asking.
 
-1. **Project name** — short title (e.g. "Comfy UI Information Architecture").
-2. **One-paragraph description** — what this project is exploring. This becomes
-   the heart of `wiki/overview.md`, so get it in the user's words.
-3. **Deliverable(s)** — what the wiki should ultimately produce (a written doc, a
-   diagram, a decision record, a Notion handoff…). Offer common options.
-4. **Audience** — who reads the output (eng, design, product, leadership, mixed).
-5. **Owner** — name/email if the user wants it recorded (default: the git user).
-6. **Starting material** — does the user have references to ingest right now?
-   Links, files, pasted notes, meeting transcripts, "none yet." Collect whatever
-   they offer; you'll ingest it in step 5.
+Ask in this order:
+
+1. **Description** — one paragraph: what is this project exploring or building? Ask
+   this on its own and wait for the reply — it's free-text and becomes the heart of
+   `wiki/overview.md`, so get it in the user's words.
+2. **Deliverable(s)** — what should the wiki ultimately produce (a design doc, an
+   ADR/decision record, a Notion handoff, a spec…)? `AskUserQuestion`, a few concrete
+   options + a default.
+3. **Audience** — who reads the output (eng, design, product, leadership, mixed)?
+   `AskUserQuestion`, options + a default.
+4. **Starting material** — anything to ingest right now (links, Figma, Notion pages,
+   meeting transcripts, pasted notes), or none yet? `AskUserQuestion` ("Yes — I'll
+   share it now" / "None yet"); if yes, collect it (ingested in step 5).
+
+**Project name** is already known when this runs via `new-project-wiki`; running
+standalone, ask for it first, on its own. **Owner** defaults to the git identity —
+state that default in passing and only ask if they want to change it; don't make it
+its own question.
 
 Also derive:
 - **Slug** — a kebab-case form of the project name, for `{{PROJECT_SLUG}}`.
