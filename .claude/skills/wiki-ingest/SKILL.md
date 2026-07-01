@@ -1,6 +1,8 @@
 ---
 name: wiki-ingest
 description: Capture a new source into the wiki. Use whenever reference material arrives — a Notion page, a Figma file, a meeting transcript, a web page or article, a local file (PDF/markdown/doc), an image or diagram, or pasted notes. Faithfully captures it into sources/, then fans the new information out across the wiki and logs the change.
+metadata:
+  internal: true
 ---
 
 # wiki-ingest

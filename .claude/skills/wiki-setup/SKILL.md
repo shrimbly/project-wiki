@@ -1,6 +1,8 @@
 ---
 name: wiki-setup
 description: First-time interactive bootstrap of a fresh project-wiki. Use when the operating manual still has {{PLACEHOLDER}} values, when the user says "set up the wiki / start a new project / initialize this", or before any other wiki skill on a brand-new copy. Captures what the project is, who it's for, and any starting material; fills in the manuals and viewer branding; seeds the wiki; and ingests initial references.
+metadata:
+  internal: true
 ---
 
 # wiki-setup

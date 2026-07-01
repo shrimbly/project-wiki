@@ -1,6 +1,8 @@
 ---
 name: wiki-research
 description: Interactive, menu-driven research to deepen the wiki. Use when the user wants to investigate core concepts, fill gaps, validate assumptions, or study external references / competitors / standards / prior art. You survey the wiki, propose a menu of concrete research options, let the user choose which to pursue, then run them and fold the findings back in. Always presents options and lets the user steer — never auto-runs a big research dump.
+metadata:
+  internal: true
 ---
 
 # wiki-research

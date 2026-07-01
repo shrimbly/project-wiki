@@ -1,6 +1,8 @@
 ---
 name: wiki-query
 description: Answer a substantive question using the wiki, with citations, and file non-trivial answers back. Use when the user asks a real question about the project's content ("what happens when…", "which decisions touch…", "how does X relate to Y") rather than asking you to ingest or research. Reads the wiki first, falls back to sources, and turns analysis worth keeping into a new or updated page.
+metadata:
+  internal: true
 ---
 
 # wiki-query

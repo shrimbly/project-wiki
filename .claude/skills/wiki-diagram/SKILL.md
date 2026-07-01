@@ -1,6 +1,8 @@
 ---
 name: wiki-diagram
 description: Create and maintain mermaid diagram(s) of the project's model in wiki/diagrams/. Use when entities or key relationships have changed (e.g. after an ingest), when the user wants a visual model, or when the diagram has drifted from the entity/concept pages. The viewer renders mermaid, so the diagram is browsable alongside the wiki.
+metadata:
+  internal: true
 ---
 
 # wiki-diagram

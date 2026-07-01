@@ -1,6 +1,8 @@
 ---
 name: wiki-publish
 description: Publish the core of the wiki as Notion document(s). Use when the user wants to share findings out of the repo — a clean, audience-ready document or small set of documents describing the project's core concepts. This is deliberately NOT a 1:1 dump of every wiki page; it's a curated narrative synthesized from the wiki. Requires the Notion MCP and confirmation before creating anything.
+metadata:
+  internal: true
 ---
 
 # wiki-publish

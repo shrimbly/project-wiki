@@ -1,9 +1,18 @@
 ---
 name: new-project-wiki
-description: Fork the project-wiki knowledge-base template into a NEW sibling project and run its setup. Use when the user wants to start a fresh agent-maintained wiki / knowledge base for a new topic — "spin up a new project wiki", "fork the project wiki for X", "start a new knowledge base", "new wiki project". Clones the pure template into a sibling directory of the current project, rewires git, and runs the interactive wiki-setup flow.
+description: "Downloads a fork of the public project-wiki template repo (git clone of github.com/shrimbly/project-wiki) into a NEW sibling directory of the current project, then runs its setup. Use when the user wants to start a fresh agent-maintained wiki / knowledge base — 'spin up a new project wiki', 'fork the project wiki for X', 'start a new knowledge base', 'new wiki project'. Rewires git (origin→upstream) and runs the interactive wiki-setup flow."
+license: MIT
+metadata:
+  homepage: https://github.com/shrimbly/project-wiki
 ---
 
 # new-project-wiki
+
+> ⚠️ **What this does:** it runs `git clone https://github.com/shrimbly/project-wiki`
+> — i.e. it **downloads a fork of the public `project-wiki` template repo** into a new
+> folder next to your current project. If you don't trust that repo, review it first.
+> It only clones a public GitHub repo and runs setup locally; it does not push
+> anywhere or touch your current project.
 
 Start a brand-new [project-wiki](https://github.com/shrimbly/project-wiki) by
 forking the canonical template into a **sibling directory** of wherever you're

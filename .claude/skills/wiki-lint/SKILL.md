@@ -1,6 +1,8 @@
 ---
 name: wiki-lint
 description: Health-check the wiki. Use periodically or on request to catch contradictions between pages, stale claims superseded by newer sources, orphan pages with no inbound links, important concepts mentioned in sources but lacking a page, missing cross-references, uncited claims, dangling links, and open questions that have since been resolved. Fixes the safe issues, reports the rest, and logs the pass.
+metadata:
+  internal: true
 ---
 
 # wiki-lint
