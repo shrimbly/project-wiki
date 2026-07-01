@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'astro/config';
 
@@ -176,13 +177,48 @@ function annotationApiPlugin() {
   };
 }
 
+// Dev-only content sync. The wiki/ and sources/ trees live OUTSIDE the viewer,
+// so Astro/Vite don't watch them — edits wouldn't show up without restarting the
+// server (which is what re-runs `npm run sync`). This watches those trees and
+// re-runs the sync script on any change, then triggers a full reload so both the
+// synced page content and the regenerated sidebar refresh live. `astro dev` only.
+function contentSyncPlugin() {
+  const projectRoot = path.resolve(__dirname, '..');
+  const syncScript = path.resolve(__dirname, 'scripts', 'sync.mjs');
+  const watched = [path.join(projectRoot, 'sources'), path.join(projectRoot, 'wiki')];
+  return {
+    name: 'project-wiki-content-sync',
+    apply: 'serve',
+    configureServer(server) {
+      let timer = null;
+      const resync = () => {
+        clearTimeout(timer);
+        timer = setTimeout(() => {
+          try {
+            execFileSync(process.execPath, [syncScript], { cwd: __dirname, stdio: 'pipe' });
+          } catch (e) {
+            server.config.logger.error(`[content-sync] sync failed: ${e.message}`);
+            return;
+          }
+          server.ws.send({ type: 'full-reload' });
+        }, 80);
+      };
+      for (const p of watched) server.watcher.add(p);
+      server.watcher.on('all', (_event, file) => {
+        if (typeof file !== 'string') return;
+        if (watched.some((w) => file === w || file.startsWith(w + path.sep))) resync();
+      });
+    },
+  };
+}
+
 export default defineConfig({
   markdown: {
     shikiConfig: { theme: 'github-light' },
     remarkPlugins: [remarkRewriteAssets, remarkMermaid],
   },
   vite: {
-    plugins: [annotationApiPlugin()],
+    plugins: [annotationApiPlugin(), contentSyncPlugin()],
     // Mermaid is heavy; pre-bundle it at dev startup so the first request
     // doesn't time out the optimizer.
     optimizeDeps: {

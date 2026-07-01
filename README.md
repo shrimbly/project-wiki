@@ -72,6 +72,8 @@ npm run dev        # → http://localhost:4321/
 ```
 
 - **Auto-generated sidebar** from your pages' frontmatter on every sync — new pages appear with no manual nav editing.
+- **Sidebar search** — filter pages by title as you type (`/` to focus, `Esc` to clear).
+- **Live reload** — edits to `wiki/` and `sources/` re-sync and refresh the browser automatically in `npm run dev`; no restart needed.
 - **Mermaid** diagrams render inline.
 - **Annotations** — highlight any text and attach a comment (`annotations/<slug>.json`); it's the primary way to give the agent feedback on specific passages. (Annotation API runs in `npm run dev` only.)
 

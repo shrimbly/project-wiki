@@ -1,5 +1,5 @@
 ---
-import { sidebarSections } from '../lib/sidebar';
+import { getSidebar } from '../lib/sidebar';
 import { site } from '../lib/site.config';
 import '../styles/global.css';
 
@@ -9,6 +9,9 @@ interface Props {
 }
 
 const { title, currentSlug } = Astro.props;
+// Read fresh on every render so the dev content-sync watcher (see astro.config.mjs)
+// can reflect edits to wiki/ and sources/ without a server restart.
+const sidebarSections = getSidebar();
 ---
 
 <!doctype html>
@@ -25,10 +28,22 @@ const { title, currentSlug } = Astro.props;
           <h1 class="brand">{site.title}</h1>
           <p class="brand-sub">{site.subtitle}</p>
         </div>
+        <div class="sidebar-search-wrap">
+          <input
+            type="search"
+            class="sidebar-search"
+            placeholder="Filter pages…"
+            aria-label="Filter pages"
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <kbd class="sidebar-search-hint">/</kbd>
+        </div>
         <nav>
           {sidebarSections.length === 0 && (
             <div class="nav-empty">No pages yet — run the wiki skills, then refresh.</div>
           )}
+          <div class="sidebar-no-results" hidden>No pages match.</div>
           {sidebarSections.map((section) => (
             <section class="nav-section">
               <h2 class="nav-section-title">{section.title}</h2>
@@ -57,6 +72,7 @@ const { title, currentSlug } = Astro.props;
     <script>
       import '../scripts/annotations.js';
       import '../scripts/mermaid.js';
+      import '../scripts/sidebar-search.js';
     </script>
   </body>
 </html>
