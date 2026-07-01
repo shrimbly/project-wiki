@@ -505,8 +505,11 @@ body[data-doc-slug="wiki-open-questions"] .doc-body ul + p {
   /* Hide raw source pre-render; replaced in-place by client script. */
   display: none;
 }
-.mermaid-rendered {
+.mermaid-figure {
+  position: relative;
   margin: 24px 0;
+}
+.mermaid-rendered {
   padding: 20px;
   background: #fff;
   border: 1px solid var(--border);
@@ -519,6 +522,79 @@ body[data-doc-slug="wiki-open-questions"] .doc-body ul + p {
   height: auto;
   display: inline-block;
 }
+
+/* Fullscreen button on each diagram */
+.diagram-fs-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  opacity: 0.5;
+  transition: opacity 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+.mermaid-figure:hover .diagram-fs-btn { opacity: 1; }
+.diagram-fs-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* Fullscreen overlay with zoom + pan */
+.diagram-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(20, 20, 19, 0.74);
+}
+.diagram-overlay[hidden] { display: none; }
+.diagram-overlay-stage {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none; /* let us own pinch/pan gestures */
+}
+.diagram-overlay-stage.grabbing { cursor: grabbing; }
+.diagram-overlay-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+.diagram-overlay-canvas svg { display: block; }
+.diagram-overlay-toolbar {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 2;
+  display: flex;
+  gap: 6px;
+}
+.diagram-overlay-toolbar button {
+  font: inherit;
+  font-size: 14px;
+  line-height: 1;
+  min-width: 36px;
+  height: 34px;
+  padding: 0 10px;
+  background: #fff;
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+}
+.diagram-overlay-toolbar button:hover { background: var(--bg-doc-meta); }
 .mermaid-error {
   background: #fdf0f0;
   border: 1px solid #f0c8c8;

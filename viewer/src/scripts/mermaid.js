@@ -1,6 +1,8 @@
 // Lazily render mermaid code blocks. Only loads the mermaid bundle when a
 // page actually contains diagrams.
 
+import { addDiagramControls } from './diagram-zoom.js';
+
 async function renderAll() {
   const sources = document.querySelectorAll('.mermaid-source');
   if (sources.length === 0) return;
@@ -37,10 +39,16 @@ async function renderAll() {
     const id = `mermaid-${Date.now()}-${i}`;
     try {
       const { svg } = await mermaidLib.render(id, code);
-      const wrapper = document.createElement('div');
-      wrapper.className = 'mermaid-rendered';
-      wrapper.innerHTML = svg;
-      el.replaceWith(wrapper);
+      // figure (positioning context, no scroll) wraps the scrollable rendered
+      // box so the fullscreen button can sit in a fixed corner.
+      const figure = document.createElement('div');
+      figure.className = 'mermaid-figure';
+      const rendered = document.createElement('div');
+      rendered.className = 'mermaid-rendered';
+      rendered.innerHTML = svg;
+      figure.appendChild(rendered);
+      el.replaceWith(figure);
+      addDiagramControls(figure, rendered);
     } catch (err) {
       console.error('Mermaid render failed:', err);
       const wrapper = document.createElement('pre');
