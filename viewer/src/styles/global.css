@@ -570,6 +570,9 @@ body[data-doc-slug="wiki-open-questions"] .doc-body ul + p {
   left: 0;
   transform-origin: 0 0;
   will-change: transform;
+  /* White sheet behind the (transparent) diagram so dark edges/labels stay
+     readable against the dimmed overlay. Scales with the diagram. */
+  background: #fff;
 }
 .diagram-overlay-canvas svg { display: block; }
 .diagram-overlay-toolbar {
