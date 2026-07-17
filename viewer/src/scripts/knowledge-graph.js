@@ -200,8 +200,8 @@ async function initGraph(root) {
     }
   }
 
-  function clusterAnchors() {
-    const categories = [...new Set(visibleNodes.map((node) => node.category))].sort(
+  function clusterAnchors(clusterNodes) {
+    const categories = [...new Set(clusterNodes.map((node) => node.category))].sort(
       (a, b) => categoryRank(a) - categoryRank(b) || a.localeCompare(b),
     );
     const positions = new Map();
@@ -213,25 +213,24 @@ async function initGraph(root) {
     return positions;
   }
 
+  // In neighborhood mode the focus is pinned at the center, so the type
+  // clusters are formed from (and labeled for) its neighbors only.
+  function clusteredNodes() {
+    return mode === 'whole' ? visibleNodes : visibleNodes.filter((node) => node.id !== selectedId);
+  }
+
   function seedPositions() {
-    anchors = mode === 'whole' ? clusterAnchors() : new Map();
+    anchors = clusterAnchors(clusteredNodes());
     const slotByCategory = new Map();
 
-    visibleNodes.forEach((node, index) => {
+    visibleNodes.forEach((node) => {
       node.fx = null;
       node.fy = null;
-      if (mode === 'neighborhood') {
-        if (node.id === selectedId) {
-          node.x = 0;
-          node.y = 0;
-          node.fx = 0;
-          node.fy = 0;
-          return;
-        }
-        const angle = -Math.PI / 2 + index * GOLDEN_ANGLE;
-        const ring = 140 + 22 * Math.sqrt(index);
-        node.x = Math.cos(angle) * ring;
-        node.y = Math.sin(angle) * ring;
+      if (mode === 'neighborhood' && node.id === selectedId) {
+        node.x = 0;
+        node.y = 0;
+        node.fx = 0;
+        node.fy = 0;
         return;
       }
       const anchor = anchors.get(node.category) ?? { x: 0, y: 0 };
@@ -247,33 +246,17 @@ async function initGraph(root) {
   function runSimulation() {
     simulation?.stop();
 
+    // Edges are drawn but deliberately exert no force — links between
+    // clusters would otherwise stretch the type clumps into each other.
     simulation = d3
       .forceSimulation(visibleNodes)
       .force(
         'charge',
-        d3.forceManyBody().strength(mode === 'whole' ? -60 : -260).distanceMax(mode === 'whole' ? 170 : 620),
+        d3.forceManyBody().strength(mode === 'whole' ? -60 : -120).distanceMax(mode === 'whole' ? 170 : 260),
       )
-      .force('collide', d3.forceCollide().radius((node) => node.radius + (mode === 'whole' ? 10 : 30)));
-
-    if (mode === 'whole') {
-      // Edges are drawn but deliberately exert no force here — links between
-      // clusters would otherwise stretch the type clumps into each other.
-      simulation
-        .force('x', d3.forceX((node) => (anchors.get(node.category) ?? { x: 0 }).x).strength(0.28))
-        .force('y', d3.forceY((node) => (anchors.get(node.category) ?? { y: 0 }).y).strength(0.28));
-    } else {
-      simulation
-        .force(
-          'link',
-          d3
-            .forceLink(visibleEdges.map((edge) => ({ ...edge })))
-            .id((node) => node.id)
-            .distance(130)
-            .strength(0.4),
-        )
-        .force('x', d3.forceX(0).strength(0.04))
-        .force('y', d3.forceY(0).strength(0.04));
-    }
+      .force('collide', d3.forceCollide().radius((node) => node.radius + (mode === 'whole' ? 10 : 30)))
+      .force('x', d3.forceX((node) => (anchors.get(node.category) ?? { x: 0 }).x).strength(0.26))
+      .force('y', d3.forceY((node) => (anchors.get(node.category) ?? { y: 0 }).y).strength(0.26));
 
     simulation.stop();
     simulation.tick(REDUCED_MOTION.matches ? 300 : 80);
@@ -300,11 +283,11 @@ async function initGraph(root) {
       .attr('y1', (edge) => nodeById.get(edge.source)?.y ?? 0)
       .attr('x2', (edge) => nodeById.get(edge.target)?.x ?? 0)
       .attr('y2', (edge) => nodeById.get(edge.target)?.y ?? 0);
-    if (mode === 'whole') renderClusterLabels();
+    renderClusterLabels();
   }
 
   function renderClusterLabels() {
-    const groups = d3.group(visibleNodes, (node) => node.category);
+    const groups = d3.group(clusteredNodes(), (node) => node.category);
     const labels = [...groups.entries()].map(([category, members]) => ({
       category,
       count: members.length,
@@ -580,8 +563,6 @@ async function initGraph(root) {
       });
 
     nodeSelection.call(drag);
-
-    if (mode !== 'whole') clusterLayer.selectAll('*').remove();
     applyEmphasis();
   }
 
