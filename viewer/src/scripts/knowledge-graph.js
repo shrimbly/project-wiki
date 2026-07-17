@@ -95,6 +95,7 @@ async function initGraph(root) {
   let simulation = null;
   let nodeSelection = d3.select(null);
   let edgeSelection = d3.select(null);
+  let labelSelection = d3.select(null);
 
   const activeRelations = new Set(
     [...root.querySelectorAll('[data-graph-relation][aria-pressed="true"]')].map(
@@ -107,6 +108,8 @@ async function initGraph(root) {
   const clusterLayer = viewport.append('g').attr('class', 'knowledge-graph-clusters').attr('aria-hidden', 'true');
   const edgeLayer = viewport.append('g').attr('class', 'knowledge-graph-edges').attr('aria-hidden', 'true');
   const nodeLayer = viewport.append('g').attr('class', 'knowledge-graph-nodes');
+  // Labels live above every node mark so a neighboring dot can never cover them.
+  const labelLayer = viewport.append('g').attr('class', 'knowledge-graph-labels').attr('aria-hidden', 'true');
 
   function measure() {
     const nextWidth = Math.max(320, stage.clientWidth);
@@ -275,11 +278,14 @@ async function initGraph(root) {
     simulation.stop();
     simulation.tick(REDUCED_MOTION.matches ? 300 : 80);
     positionElements();
+    applyEmphasis();
     if (!userMovedViewport) fitGraph(false);
 
     if (!REDUCED_MOTION.matches) {
       simulation.on('tick', positionElements);
       simulation.on('end', () => {
+        // Positions settled — re-run label collision pruning against them.
+        applyEmphasis();
         if (!userMovedViewport) fitGraph(true);
       });
       simulation.alpha(0.25).restart();
@@ -288,6 +294,7 @@ async function initGraph(root) {
 
   function positionElements() {
     nodeSelection.attr('transform', (node) => `translate(${node.x},${node.y})`);
+    labelSelection.attr('x', (node) => node.x).attr('y', (node) => node.y + node.radius + 15);
     edgeSelection
       .attr('x1', (edge) => nodeById.get(edge.source)?.x ?? 0)
       .attr('y1', (edge) => nodeById.get(edge.source)?.y ?? 0)
@@ -353,9 +360,43 @@ async function initGraph(root) {
   }
 
   function labelVisible(node, hoverNeighbors, selectedNeighbors) {
-    if (node.id === hoveredId || node.id === selectedId) return true;
+    if (node.id === hoveredId) return false; // the tooltip already names it
+    if (node.id === selectedId) return true;
     if (mode === 'neighborhood') return true;
     return (hoverNeighbors?.has(node.id) ?? false) || (selectedNeighbors?.has(node.id) ?? false);
+  }
+
+  // Greedily drop labels whose boxes would overlap an already-placed label,
+  // so dense clusters show fewer labels instead of unreadable stacks.
+  function visibleLabelIds(hoverNeighbors, selectedNeighbors) {
+    const candidates = visibleNodes
+      .filter((node) => labelVisible(node, hoverNeighbors, selectedNeighbors))
+      .sort((a, b) => {
+        const priorityA = a.id === selectedId ? 0 : 1;
+        const priorityB = b.id === selectedId ? 0 : 1;
+        if (priorityA !== priorityB) return priorityA - priorityB;
+        return a.y - b.y || a.x - b.x;
+      });
+
+    const accepted = [];
+    const ids = new Set();
+    for (const node of candidates) {
+      const width = truncate(node.title).length * 6.7;
+      const box = {
+        left: node.x - width / 2,
+        right: node.x + width / 2,
+        top: node.y + node.radius + 4,
+        bottom: node.y + node.radius + 19,
+      };
+      const collides = accepted.some(
+        (other) =>
+          box.left < other.right && box.right > other.left && box.top < other.bottom && box.bottom > other.top,
+      );
+      if (collides) continue;
+      accepted.push(box);
+      ids.add(node.id);
+    }
+    return ids;
   }
 
   function applyEmphasis() {
@@ -380,9 +421,16 @@ async function initGraph(root) {
           !selectedNeighbors?.has(node.id),
       );
 
-    nodeSelection
-      .select('.knowledge-graph-node-label')
-      .classed('is-visible', (node) => labelVisible(node, hoverNeighbors, selectedNeighbors));
+    const labelIds = visibleLabelIds(hoverNeighbors, selectedNeighbors);
+    labelSelection = labelLayer
+      .selectAll('text')
+      .data(visibleNodes.filter((node) => labelIds.has(node.id)), (node) => node.id)
+      .join('text')
+      .attr('class', 'knowledge-graph-node-label is-visible')
+      .attr('text-anchor', 'middle')
+      .attr('x', (node) => node.x)
+      .attr('y', (node) => node.y + node.radius + 15)
+      .text((node) => truncate(node.title));
   }
 
   function syncOpenButton() {
@@ -432,7 +480,6 @@ async function initGraph(root) {
             .attr('tabindex', 0);
           group.append('circle').attr('class', 'knowledge-graph-node-hit');
           group.append('path').attr('class', 'knowledge-graph-node-mark');
-          group.append('text').attr('class', 'knowledge-graph-node-label');
           group.append('title');
           return group;
         },
@@ -459,12 +506,6 @@ async function initGraph(root) {
           .type(node.kind === 'source' ? d3.symbolSquare : d3.symbolCircle)
           .size(node.radius * node.radius * (node.kind === 'source' ? 3.2 : Math.PI))(),
       );
-    nodeSelection
-      .select('.knowledge-graph-node-label')
-      .attr('text-anchor', 'middle')
-      .attr('x', 0)
-      .attr('y', (node) => node.radius + 15)
-      .text((node) => truncate(node.title));
     nodeSelection.select('title').text((node) => node.title);
 
     nodeSelection
