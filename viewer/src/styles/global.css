@@ -541,11 +541,6 @@ body[data-doc-slug="wiki-open-questions"] .doc-body ul + p {
   stroke-dasharray: 1 5;
   stroke-opacity: 0.35;
 }
-/* The whole map carries many more edges — keep them recessive there. */
-.knowledge-graph[data-graph-mode="whole"]
-  .knowledge-graph-edge:not(.is-active):not(.is-muted) {
-  stroke-opacity: 0.28;
-}
 .knowledge-graph-edge.is-active {
   stroke-opacity: 0.92;
   stroke-width: 1.9;
@@ -585,7 +580,7 @@ body[data-doc-slug="wiki-open-questions"] .doc-body ul + p {
   stroke-width: 3;
 }
 .knowledge-graph-node.is-neighbor .knowledge-graph-node-mark { stroke-width: 3; }
-.knowledge-graph-node.is-focus .knowledge-graph-node-mark {
+.knowledge-graph-node.is-selected .knowledge-graph-node-mark {
   stroke: var(--text);
   stroke-width: 3;
   filter: drop-shadow(0 0 4px rgba(47, 99, 181, 0.3));
@@ -616,6 +611,40 @@ body[data-doc-slug="wiki-open-questions"] .doc-body ul + p {
   font-weight: 500;
   line-height: 1.35;
   pointer-events: none;
+}
+.knowledge-graph-open {
+  position: absolute;
+  z-index: 2;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: min(420px, calc(100% - 150px));
+  padding: 8px 15px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.16);
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.knowledge-graph-open[hidden] { display: none; }
+.knowledge-graph-open [data-graph-open-title] {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.knowledge-graph-open:hover {
+  color: #fff;
+  background: #28569b;
+}
+.knowledge-graph-open:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 .knowledge-graph-loading {
   position: absolute;
@@ -695,6 +724,11 @@ body[data-doc-slug="wiki-open-questions"] .doc-body ul + p {
     left: 12px;
     max-width: calc(100% - 132px);
     justify-content: flex-start;
+  }
+  /* Keep the open button clear of the relation chips parked bottom-left. */
+  .knowledge-graph-open {
+    bottom: 52px;
+    max-width: calc(100% - 24px);
   }
 }
 

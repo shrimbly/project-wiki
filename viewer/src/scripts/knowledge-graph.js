@@ -1,7 +1,8 @@
 const REDUCED_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)');
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
+// Meta pages (overview, log) stay out of the graph — the canvas is for content pages.
+const HIDDEN_CATEGORIES = new Set(['overview', 'log']);
 const CATEGORY_PRIORITY = [
-  'overview',
   'entity',
   'concept',
   'decision',
@@ -57,7 +58,9 @@ async function initGraph(root) {
   const svgElement = root.querySelector('[data-graph-svg]');
   const tooltip = root.querySelector('[data-graph-tooltip]');
   const status = root.querySelector('[data-graph-status]');
-  if (!graph?.nodes?.length || !stage || !svgElement || !tooltip || !status) return;
+  const openButton = root.querySelector('[data-graph-open]');
+  const openTitle = root.querySelector('[data-graph-open-title]');
+  if (!graph?.nodes?.length || !stage || !svgElement || !tooltip || !status || !openButton) return;
 
   let d3;
   try {
@@ -70,7 +73,7 @@ async function initGraph(root) {
   }
 
   const nodes = graph.nodes
-    .filter((node) => !node.catalog)
+    .filter((node) => !node.catalog && !HIDDEN_CATEGORIES.has(node.category))
     .map((node) => ({ ...node, radius: node.kind === 'source' ? 6.5 : 8 }));
   if (nodes.length === 0) return;
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
@@ -78,11 +81,11 @@ async function initGraph(root) {
     (edge) => edge.source !== edge.target && nodeById.has(edge.source) && nodeById.has(edge.target),
   );
 
-  const defaultFocusId = nodeById.has(graph.defaultFocusId) ? graph.defaultFocusId : nodes[0].id;
-  let focusId = defaultFocusId;
+  let selectedId = null;
   let mode = 'whole';
   let hoveredId = null;
   let userMovedViewport = false;
+  let layoutKey = '';
   let width = 0;
   let height = 0;
   let visibleNodes = [];
@@ -120,6 +123,7 @@ async function initGraph(root) {
   const zoom = d3
     .zoom()
     .scaleExtent([0.25, 4])
+    .clickDistance(5)
     .filter((event) => {
       if (event.type === 'dblclick') return false;
       if (event.type === 'wheel') return true;
@@ -136,6 +140,13 @@ async function initGraph(root) {
 
   svg.call(zoom).on('dblclick.zoom', null);
 
+  svg.on('click', (event) => {
+    if (event.target.closest?.('.knowledge-graph-node')) return;
+    if (mode !== 'whole' || selectedId === null) return;
+    select(null);
+    status.textContent = 'Selection cleared.';
+  });
+
   // Cluster labels keep a constant on-screen size regardless of zoom level.
   function syncClusterLabelScale(scale = d3.zoomTransform(svgElement).k) {
     clusterLayer.style('font-size', `${11 / Math.max(0.2, scale)}px`);
@@ -145,10 +156,20 @@ async function initGraph(root) {
     return node.kind !== 'source' || activeRelations.has('source');
   }
 
+  function fallbackFocusId() {
+    const candidates = nodes
+      .filter(nodeVisible)
+      .sort((a, b) => categoryRank(a.category) - categoryRank(b.category) || a.title.localeCompare(b.title));
+    return candidates[0]?.id ?? null;
+  }
+
   function compute() {
-    if (!nodeVisible(nodeById.get(focusId))) focusId = defaultFocusId;
     const candidates = nodes.filter(nodeVisible);
     const candidateIds = new Set(candidates.map((node) => node.id));
+
+    if (selectedId && !candidateIds.has(selectedId)) selectedId = null;
+    if (mode === 'neighborhood' && !selectedId) selectedId = fallbackFocusId();
+
     const layerEdges = edges.filter(
       (edge) =>
         activeRelations.has(edge.relation) &&
@@ -160,10 +181,10 @@ async function initGraph(root) {
       visibleNodes = candidates;
       visibleEdges = layerEdges;
     } else {
-      const keep = new Set([focusId]);
+      const keep = new Set([selectedId]);
       for (const edge of layerEdges) {
-        if (edge.source === focusId) keep.add(edge.target);
-        if (edge.target === focusId) keep.add(edge.source);
+        if (edge.source === selectedId) keep.add(edge.target);
+        if (edge.target === selectedId) keep.add(edge.source);
       }
       visibleNodes = candidates.filter((node) => keep.has(node.id));
       visibleEdges = layerEdges.filter((edge) => keep.has(edge.source) && keep.has(edge.target));
@@ -181,11 +202,9 @@ async function initGraph(root) {
       (a, b) => categoryRank(a) - categoryRank(b) || a.localeCompare(b),
     );
     const positions = new Map();
-    const ring = categories.filter((category) => category !== 'overview');
-    if (categories.includes('overview')) positions.set('overview', { x: 0, y: 0 });
-    const radius = ring.length <= 1 ? 0 : 230 + ring.length * 26;
-    ring.forEach((category, index) => {
-      const angle = -Math.PI / 2 + (index / Math.max(1, ring.length)) * Math.PI * 2;
+    const radius = categories.length <= 1 ? 0 : 230 + categories.length * 26;
+    categories.forEach((category, index) => {
+      const angle = -Math.PI / 2 + (index / Math.max(1, categories.length)) * Math.PI * 2;
       positions.set(category, { x: Math.cos(angle) * radius, y: Math.sin(angle) * radius });
     });
     return positions;
@@ -199,7 +218,7 @@ async function initGraph(root) {
       node.fx = null;
       node.fy = null;
       if (mode === 'neighborhood') {
-        if (node.id === focusId) {
+        if (node.id === selectedId) {
           node.x = 0;
           node.y = 0;
           node.fx = 0;
@@ -295,49 +314,112 @@ async function initGraph(root) {
       .text((label) => `${categoryLabel(label.category)} · ${label.count}`);
   }
 
-  function labelVisible(node, neighbors) {
-    if (node.id === hoveredId) return true;
+  // Whole map: edges appear only for the hovered and the selected node.
+  // Neighborhood: the focused subgraph shows all of its edges.
+  function displayedEdges() {
+    if (mode === 'neighborhood') return visibleEdges;
+    if (hoveredId === null && selectedId === null) return [];
+    return visibleEdges.filter(
+      (edge) =>
+        edge.source === hoveredId ||
+        edge.target === hoveredId ||
+        edge.source === selectedId ||
+        edge.target === selectedId,
+    );
+  }
+
+  function renderEdges() {
+    edgeSelection = edgeLayer
+      .selectAll('line')
+      .data(displayedEdges(), (edge) => edge.id)
+      .join('line')
+      .attr('class', (edge) => `knowledge-graph-edge knowledge-graph-edge--${edge.relation}`)
+      .classed(
+        'is-active',
+        (edge) => hoveredId !== null && (edge.source === hoveredId || edge.target === hoveredId),
+      )
+      .classed(
+        'is-muted',
+        (edge) =>
+          mode === 'neighborhood' &&
+          hoveredId !== null &&
+          edge.source !== hoveredId &&
+          edge.target !== hoveredId,
+      )
+      .attr('x1', (edge) => nodeById.get(edge.source)?.x ?? 0)
+      .attr('y1', (edge) => nodeById.get(edge.source)?.y ?? 0)
+      .attr('x2', (edge) => nodeById.get(edge.target)?.x ?? 0)
+      .attr('y2', (edge) => nodeById.get(edge.target)?.y ?? 0);
+  }
+
+  function labelVisible(node, hoverNeighbors, selectedNeighbors) {
+    if (node.id === hoveredId || node.id === selectedId) return true;
     if (mode === 'neighborhood') return true;
-    return neighbors?.has(node.id) ?? false;
+    return (hoverNeighbors?.has(node.id) ?? false) || (selectedNeighbors?.has(node.id) ?? false);
   }
 
   function applyEmphasis() {
-    const activeId = hoveredId;
-    const neighbors = activeId ? neighborIds.get(activeId) ?? new Set() : null;
-
-    edgeSelection
-      .classed('is-active', (edge) => activeId !== null && (edge.source === activeId || edge.target === activeId))
-      .classed('is-muted', (edge) => activeId !== null && edge.source !== activeId && edge.target !== activeId);
+    renderEdges();
+    const hoverNeighbors = hoveredId ? neighborIds.get(hoveredId) ?? new Set() : null;
+    const selectedNeighbors = selectedId ? neighborIds.get(selectedId) ?? new Set() : null;
 
     nodeSelection
-      .classed('is-focus', (node) => mode === 'neighborhood' && node.id === focusId)
-      .classed('is-hovered', (node) => node.id === activeId)
-      .classed('is-neighbor', (node) => neighbors?.has(node.id) ?? false)
-      .classed('is-dimmed', (node) => activeId !== null && node.id !== activeId && !neighbors?.has(node.id));
+      .classed('is-selected', (node) => node.id === selectedId)
+      .classed('is-hovered', (node) => node.id === hoveredId)
+      .classed(
+        'is-neighbor',
+        (node) => (hoverNeighbors?.has(node.id) || selectedNeighbors?.has(node.id)) ?? false,
+      )
+      .classed(
+        'is-dimmed',
+        (node) =>
+          hoveredId !== null &&
+          node.id !== hoveredId &&
+          node.id !== selectedId &&
+          !hoverNeighbors?.has(node.id) &&
+          !selectedNeighbors?.has(node.id),
+      );
 
     nodeSelection
       .select('.knowledge-graph-node-label')
-      .classed('is-visible', (node) => labelVisible(node, neighbors));
+      .classed('is-visible', (node) => labelVisible(node, hoverNeighbors, selectedNeighbors));
+  }
+
+  function syncOpenButton() {
+    const node = selectedId ? nodeById.get(selectedId) : null;
+    if (!node) {
+      openButton.hidden = true;
+      return;
+    }
+    openButton.hidden = false;
+    openButton.href = node.href;
+    if (openTitle) openTitle.textContent = truncate(node.title, 44);
+  }
+
+  function select(id, { announce = true } = {}) {
+    selectedId = id;
+    if (mode === 'neighborhood') {
+      userMovedViewport = false;
+      update();
+    } else {
+      applyEmphasis();
+      syncOpenButton();
+    }
+    if (announce && id) {
+      const node = nodeById.get(id);
+      status.textContent = `${node.title} selected. Use the Open page button, or the Neighborhood view to explore around it.`;
+    }
   }
 
   function activate(node) {
-    if (mode === 'neighborhood' && node.id !== focusId) {
-      focusId = node.id;
-      userMovedViewport = false;
-      update();
-      status.textContent = `${node.title} is now the focus. Showing its direct connections.`;
+    if (node.id === selectedId) {
+      window.location.assign(node.href);
       return;
     }
-    window.location.assign(node.href);
+    select(node.id);
   }
 
   function render() {
-    edgeSelection = edgeLayer
-      .selectAll('line')
-      .data(visibleEdges, (edge) => edge.id)
-      .join('line')
-      .attr('class', (edge) => `knowledge-graph-edge knowledge-graph-edge--${edge.relation}`);
-
     nodeSelection = nodeLayer
       .selectAll('g.knowledge-graph-node')
       .data(visibleNodes, (node) => node.id)
@@ -365,9 +447,7 @@ async function initGraph(root) {
         ].join(' '),
       )
       .attr('aria-label', (node) =>
-        mode === 'whole' || node.id === focusId
-          ? `${node.title}, ${categoryLabel(node.category)}. Open page.`
-          : `${node.title}, ${categoryLabel(node.category)}. Activate to focus its connections; activate again to open.`,
+        `${node.title}, ${categoryLabel(node.category)}. Select to show its connections; select again to open.`,
       );
 
     nodeSelection.select('.knowledge-graph-node-hit').attr('r', (node) => Math.max(17, node.radius + 8));
@@ -417,6 +497,7 @@ async function initGraph(root) {
           event.stopPropagation();
           return;
         }
+        event.stopPropagation();
         activate(node);
       })
       .on('dblclick', (event, node) => {
@@ -450,7 +531,7 @@ async function initGraph(root) {
       })
       .on('end', (_event, node) => {
         if (!REDUCED_MOTION.matches) simulation?.alphaTarget(0);
-        if (!(mode === 'neighborhood' && node.id === focusId)) {
+        if (!(mode === 'neighborhood' && node.id === selectedId)) {
           node.fx = null;
           node.fy = null;
         }
@@ -504,9 +585,18 @@ async function initGraph(root) {
     hoveredId = null;
     hideTooltip();
     compute();
-    seedPositions();
     render();
-    runSimulation();
+    // Re-layout only when the set of positioned nodes changes; toggling an
+    // edge layer that adds no nodes must not shuffle the map around.
+    const key = `${mode}:${selectedId ?? ''}:${visibleNodes.map((node) => node.id).join(',')}`;
+    if (key !== layoutKey) {
+      layoutKey = key;
+      seedPositions();
+      runSimulation();
+    } else {
+      positionElements();
+    }
+    syncOpenButton();
     root.dataset.graphMode = mode;
   }
 
@@ -566,7 +656,7 @@ async function initGraph(root) {
       status.textContent =
         mode === 'whole'
           ? 'Showing the whole map, clustered by page type.'
-          : `Showing the pages directly connected to ${nodeById.get(focusId)?.title ?? 'the focus page'}.`;
+          : `Showing the pages directly connected to ${nodeById.get(selectedId)?.title ?? 'the selected page'}.`;
     });
   });
 

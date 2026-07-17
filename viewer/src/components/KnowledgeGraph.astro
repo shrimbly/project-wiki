@@ -6,7 +6,11 @@ interface Props {
 }
 
 const { graph } = Astro.props;
-const pages = graph.nodes.filter((node) => !node.catalog).sort((a, b) => a.title.localeCompare(b.title));
+// Meta pages (overview, log) stay out of the graph — keep in sync with knowledge-graph.js.
+const hiddenCategories = new Set(['overview', 'log']);
+const pages = graph.nodes
+  .filter((node) => !node.catalog && !hiddenCategories.has(node.category))
+  .sort((a, b) => a.title.localeCompare(b.title));
 const pageIds = new Set(pages.map((page) => page.id));
 const edges = graph.edges.filter((edge) => pageIds.has(edge.source) && pageIds.has(edge.target));
 
@@ -42,8 +46,8 @@ const serializedGraph = JSON.stringify(graph)
     <p class="knowledge-graph-eyebrow">Knowledge graph</p>
     <h1 id="knowledge-graph-title">Explore the wiki</h1>
     <p class="knowledge-graph-summary">
-      {pages.length} {pages.length === 1 ? 'page' : 'pages'} clustered by type. Hover a node for its
-      title, click to open the page.
+      {pages.length} {pages.length === 1 ? 'page' : 'pages'} clustered by type. Hover a node to see
+      its connections, click to select it, then open it or explore its neighborhood.
     </p>
   </header>
 
@@ -58,8 +62,9 @@ const serializedGraph = JSON.stringify(graph)
       >
         <title id="knowledge-graph-svg-title">Interactive map of wiki pages</title>
         <desc id="knowledge-graph-svg-description">
-          Pages are grouped into clusters by type. Hover or focus a node to see its title, click it
-          to open the page, and use the on-canvas filters to reveal more relationship layers.
+          Pages are grouped into clusters by type. Hover or focus a node to see its title and
+          connections, select it to keep them shown and reveal an Open page button, and use the
+          on-canvas filters to reveal more relationship layers.
         </desc>
       </svg>
 
@@ -90,6 +95,10 @@ const serializedGraph = JSON.stringify(graph)
         <button type="button" data-graph-action="fit" aria-label="Fit graph to view">Fit</button>
         <button type="button" data-graph-action="zoom-in" aria-label="Zoom in">+</button>
       </div>
+
+      <a class="knowledge-graph-open" data-graph-open href="#" hidden>
+        Open <span data-graph-open-title></span> <span aria-hidden="true">→</span>
+      </a>
 
       <div class="knowledge-graph-tooltip" data-graph-tooltip role="tooltip" hidden></div>
       <p class="sr-only" data-graph-status aria-live="polite"></p>
