@@ -1,7 +1,10 @@
 ---
 import { getEntry, render } from 'astro:content';
+import KnowledgeGraph from '../components/KnowledgeGraph.astro';
 import Layout from '../layouts/Layout.astro';
+import { getKnowledgeGraph } from '../lib/knowledge-graph';
 
+const graph = getKnowledgeGraph();
 const entry = await getEntry('sources', 'index');
 if (!entry) throw new Error('sources/index.md not found — run `npm run sync`');
 
@@ -10,7 +13,8 @@ const title = entry.data.title || 'Sources Index';
 ---
 
 <Layout title={title} currentSlug="index">
-  <article class="doc">
+  <KnowledgeGraph graph={graph} />
+  <article class="doc home-source-index">
     <header class="doc-header">
       <h1>{title}</h1>
     </header>

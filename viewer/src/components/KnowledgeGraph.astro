@@ -1,0 +1,108 @@
+---
+import type { KnowledgeGraph } from '../lib/knowledge-graph';
+
+interface Props {
+  graph: KnowledgeGraph;
+}
+
+const { graph } = Astro.props;
+const nodeById = new Map(graph.nodes.map((node) => [node.id, node]));
+const neighborIds = new Map(graph.nodes.map((node) => [node.id, new Set<string>()]));
+
+for (const edge of graph.edges) {
+  neighborIds.get(edge.source)?.add(edge.target);
+  neighborIds.get(edge.target)?.add(edge.source);
+}
+
+const pages = graph.nodes
+  .map((node) => ({
+    ...node,
+    neighbors: [...(neighborIds.get(node.id) ?? [])]
+      .map((id) => nodeById.get(id))
+      .filter((neighbor) => neighbor !== undefined)
+      .sort((a, b) => a.title.localeCompare(b.title)),
+  }))
+  .sort((a, b) => a.title.localeCompare(b.title));
+
+const serializedGraph = JSON.stringify(graph)
+  .replace(/</g, '\\u003c')
+  .replace(new RegExp('\\u2028', 'g'), '\\u2028')
+  .replace(new RegExp('\\u2029', 'g'), '\\u2029');
+---
+
+<section class="knowledge-graph" data-knowledge-graph aria-labelledby="knowledge-graph-title">
+  <header class="knowledge-graph-header">
+    <div>
+      <p class="knowledge-graph-eyebrow">Knowledge graph</p>
+      <h1 id="knowledge-graph-title">Explore the wiki</h1>
+      <p class="knowledge-graph-summary">
+        {graph.nodes.length} {graph.nodes.length === 1 ? 'page' : 'pages'} and {graph.edges.length}{' '}
+        {graph.edges.length === 1 ? 'connection' : 'connections'}. Hover or focus a node to see its
+        title; select it to open the page.
+      </p>
+    </div>
+
+    <div class="knowledge-graph-toolbar" aria-label="Knowledge graph controls">
+      <button type="button" data-graph-action="zoom-out" aria-label="Zoom out" disabled={graph.nodes.length === 0}>−</button>
+      <button type="button" data-graph-action="fit" aria-label="Fit graph to view" disabled={graph.nodes.length === 0}>Fit</button>
+      <button type="button" data-graph-action="zoom-in" aria-label="Zoom in" disabled={graph.nodes.length === 0}>+</button>
+    </div>
+  </header>
+
+  <div class="knowledge-graph-legend" aria-label="Page types">
+    <span><i class="knowledge-graph-key knowledge-graph-key-wiki" aria-hidden="true"></i> Wiki page</span>
+    <span><i class="knowledge-graph-key knowledge-graph-key-source" aria-hidden="true"></i> Source</span>
+  </div>
+
+  {graph.nodes.length > 0 ? (
+    <div class="knowledge-graph-stage" data-graph-stage>
+      <p class="knowledge-graph-loading">Loading graph…</p>
+      <svg
+        class="knowledge-graph-svg"
+        data-graph-svg
+        role="img"
+        aria-labelledby="knowledge-graph-svg-title knowledge-graph-svg-description"
+      >
+        <title id="knowledge-graph-svg-title">Interactive map of wiki pages</title>
+        <desc id="knowledge-graph-svg-description">
+          Connected pages are joined by lines. Use Tab to move between pages, Enter to open a page,
+          and the controls above to zoom or fit the graph.
+        </desc>
+      </svg>
+      <div class="knowledge-graph-tooltip" data-graph-tooltip role="tooltip" hidden></div>
+      <p class="sr-only" data-graph-status aria-live="polite"></p>
+    </div>
+  ) : (
+    <div class="knowledge-graph-empty">No pages are available yet. Run the wiki setup or ingest skills, then refresh.</div>
+  )}
+
+  <details class="knowledge-graph-list">
+    <summary>Browse all pages and connections</summary>
+    <ul>
+      {pages.map((page) => (
+        <li>
+          <a href={page.href}>{page.title}</a>
+          <span class="knowledge-graph-list-kind">{page.kind === 'wiki' ? 'Wiki page' : 'Source'}</span>
+          {page.neighbors.length > 0 ? (
+            <span class="knowledge-graph-list-neighbors">
+              Connected to {page.neighbors.map((neighbor, index) => (
+                <>
+                  {index > 0 && ', '}
+                  <a href={neighbor.href}>{neighbor.title}</a>
+                </>
+              ))}
+            </span>
+          ) : (
+            <span class="knowledge-graph-list-neighbors">No connections</span>
+          )}
+        </li>
+      ))}
+    </ul>
+  </details>
+
+  <script is:inline type="application/json" class="knowledge-graph-data" set:html={serializedGraph}></script>
+</section>
+
+<script>
+  import '../scripts/knowledge-graph.js';
+</script>

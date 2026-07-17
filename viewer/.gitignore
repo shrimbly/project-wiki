@@ -4,4 +4,5 @@ dist/
 src/content/sources/
 public/assets/
 src/lib/sidebar.generated.json
+src/lib/knowledge-graph.generated.json
 .DS_Store

@@ -1,6 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { load as parseYaml } from 'js-yaml';
+import { fromMarkdown } from 'mdast-util-from-markdown';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
@@ -10,6 +12,7 @@ const wikiDir = path.resolve(projectRoot, 'wiki');
 const targetMd = path.join(root, 'src', 'content', 'sources');
 const targetAssets = path.join(root, 'public', 'assets');
 const sidebarFile = path.join(root, 'src', 'lib', 'sidebar.generated.json');
+const graphFile = path.join(root, 'src', 'lib', 'knowledge-graph.generated.json');
 
 if (!fs.existsSync(sourcesDir)) {
   console.error(`sources/ not found at ${sourcesDir}`);
@@ -21,28 +24,97 @@ fs.rmSync(targetAssets, { recursive: true, force: true });
 fs.mkdirSync(targetMd, { recursive: true });
 fs.mkdirSync(targetAssets, { recursive: true });
 
-// ---------- Frontmatter parsing (lightweight; avoids a YAML dependency) ----------
-function parseFrontmatter(content) {
-  if (!content.startsWith('---\n')) return {};
-  const end = content.indexOf('\n---', 4);
-  if (end < 0) return {};
-  const block = content.slice(4, end);
-  const get = (key) => {
-    const m = block.match(new RegExp(`^${key}:\\s*(.+?)\\s*$`, 'm'));
-    if (!m) return undefined;
-    return m[1].replace(/^["']|["']$/g, '');
-  };
-  const order = get('order');
-  return {
-    title: get('title'),
-    badge: get('badge'),
-    order: order !== undefined && order !== '' ? Number(order) : undefined,
-  };
+// ---------- Document parsing ----------
+const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/;
+
+function parseDocument(content, repoPath) {
+  const match = FRONTMATTER_RE.exec(content);
+  if (!match) return { data: {}, body: content };
+
+  try {
+    const data = parseYaml(match[1]) ?? {};
+    if (typeof data !== 'object' || Array.isArray(data)) {
+      throw new Error('frontmatter must be a mapping');
+    }
+    return { data, body: content.slice(match[0].length) };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Invalid frontmatter in ${repoPath}: ${message}`);
+  }
+}
+
+function stringValue(data, key) {
+  const value = data[key];
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+function numberValue(data, key) {
+  const value = data[key];
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
+}
+
+function stringList(data, key) {
+  const value = data[key];
+  if (typeof value === 'string') return value.trim() ? [value.trim()] : [];
+  if (!Array.isArray(value)) return [];
+  return value.filter((item) => typeof item === 'string' && item.trim()).map((item) => item.trim());
+}
+
+function markdownLinks(body) {
+  const tree = fromMarkdown(body);
+  const definitions = new Map();
+  const links = [];
+
+  function walk(node, callback) {
+    callback(node);
+    if (!Array.isArray(node.children)) return;
+    for (const child of node.children) walk(child, callback);
+  }
+
+  walk(tree, (node) => {
+    if (node.type === 'definition' && typeof node.identifier === 'string' && typeof node.url === 'string') {
+      definitions.set(node.identifier.toLowerCase(), node.url);
+    }
+  });
+
+  walk(tree, (node) => {
+    if (node.type === 'link' && typeof node.url === 'string') {
+      links.push(node.url);
+    } else if (node.type === 'linkReference' && typeof node.identifier === 'string') {
+      const url = definitions.get(node.identifier.toLowerCase());
+      if (url) links.push(url);
+    }
+  });
+
+  return links;
+}
+
+// ---------- Sync documents ----------
+const sourceEntries = []; // { slug, label, badge, order, isIndex }
+const wikiEntries = []; // { slug, dir, base, label, badge, order }
+const documents = [];
+const documentsBySlug = new Map();
+let sourcesCount = 0;
+let wikiCount = 0;
+let assetCount = 0;
+
+function registerDocument(document) {
+  const existing = documentsBySlug.get(document.slug);
+  if (existing) {
+    throw new Error(
+      `Duplicate viewer slug "${document.slug}" from ${existing.repoPath} and ${document.repoPath}`,
+    );
+  }
+  documents.push(document);
+  documentsBySlug.set(document.slug, document);
 }
 
 // ---------- Sync sources/*.md (flat) — preserve filenames, INDEX.md → index.md ----------
-const sourceEntries = []; // { slug, label, badge, order, isIndex }
-let sourcesCount = 0;
 for (const name of fs.readdirSync(sourcesDir)) {
   const src = path.join(sourcesDir, name);
   if (!fs.statSync(src).isFile() || !name.endsWith('.md')) continue;
@@ -50,29 +122,41 @@ for (const name of fs.readdirSync(sourcesDir)) {
   const isIndex = name === 'INDEX.md';
   const targetName = isIndex ? 'index.md' : name;
   const slug = isIndex ? 'index' : name.replace(/\.md$/, '');
+  const repoPath = `sources/${name}`;
   let content = fs.readFileSync(src, 'utf8');
   if (!content.startsWith('---\n')) {
     const title = isIndex ? 'Sources Index' : slug;
     content = `---\ntitle: "${title}"\n---\n\n` + content;
   }
-  const fm = parseFrontmatter(content);
-  fs.writeFileSync(path.join(targetMd, targetName), content);
-  sourceEntries.push({
+
+  const parsed = parseDocument(content, repoPath);
+  const title = stringValue(parsed.data, 'title') || (isIndex ? 'Sources Index' : slug);
+  const badge = stringValue(parsed.data, 'badge');
+  const order = numberValue(parsed.data, 'order');
+  const pageType = stringValue(parsed.data, 'type');
+
+  registerDocument({
     slug,
-    label: fm.title || (isIndex ? 'Sources Index' : slug),
-    badge: fm.badge,
-    order: fm.order,
-    isIndex,
+    href: isIndex ? '/' : `/${slug}/`,
+    title,
+    kind: 'source',
+    pageType,
+    catalog: isIndex || pageType === 'index',
+    repoPath,
+    contentPath: name,
+    contentDir: '',
+    data: parsed.data,
+    body: parsed.body,
   });
+
+  fs.writeFileSync(path.join(targetMd, targetName), content);
+  sourceEntries.push({ slug, label: title, badge, order, isIndex });
   sourcesCount++;
 }
 
 // ---------- Sync wiki/**/*.md (recursive) → flat namespaced slugs (`wiki-<dir>-<file>`) ----------
 // Also copies any `assets/` directories under wiki/ to public/assets/<wiki-relpath>/
 // and rewrites `./assets/X` → `/assets/<wiki-relpath>/X` in synced markdown.
-const wikiEntries = []; // { slug, dir, base, label, badge, order }
-let wikiCount = 0;
-let assetCount = 0;
 function syncWiki(dir, prefix, relPath = '') {
   if (!fs.existsSync(dir)) return;
   for (const name of fs.readdirSync(dir)) {
@@ -95,27 +179,44 @@ function syncWiki(dir, prefix, relPath = '') {
       continue;
     }
     if (!stat.isFile() || !name.endsWith('.md')) continue;
+
     const baseName = name.replace(/\.md$/, '');
     const targetName = `${prefix}-${baseName}.md`;
     const slug = `${prefix}-${baseName}`;
+    const contentPath = relPath ? `${relPath}/${name}` : name;
+    const repoPath = `wiki/${contentPath}`;
     let content = fs.readFileSync(full, 'utf8');
     if (!content.startsWith('---\n')) {
       content = `---\ntitle: "${baseName}"\n---\n\n` + content;
     }
-    // Rewrite ./assets/X → /assets/<relPath>/X for markdown + html image refs
+
+    // Rewrite ./assets/X → /assets/<relPath>/X for markdown + html image refs.
     const assetPrefix = relPath ? `/assets/${relPath}/` : '/assets/';
     content = content.replace(/\]\(\.\/assets\//g, `](${assetPrefix}`);
     content = content.replace(/src="\.\/assets\//g, `src="${assetPrefix}`);
-    fs.writeFileSync(path.join(targetMd, targetName), content);
-    const fm = parseFrontmatter(content);
-    wikiEntries.push({
+
+    const parsed = parseDocument(content, repoPath);
+    const title = stringValue(parsed.data, 'title') || baseName;
+    const badge = stringValue(parsed.data, 'badge');
+    const order = numberValue(parsed.data, 'order');
+    const pageType = stringValue(parsed.data, 'type');
+
+    registerDocument({
       slug,
-      dir: relPath, // '' for top-level wiki files
-      base: baseName,
-      label: fm.title || baseName,
-      badge: fm.badge,
-      order: fm.order,
+      href: `/${slug}/`,
+      title,
+      kind: 'wiki',
+      pageType,
+      catalog: baseName === 'index' || pageType === 'index',
+      repoPath,
+      contentPath,
+      contentDir: relPath,
+      data: parsed.data,
+      body: parsed.body,
     });
+
+    fs.writeFileSync(path.join(targetMd, targetName), content);
+    wikiEntries.push({ slug, dir: relPath, base: baseName, label: title, badge, order });
     wikiCount++;
   }
 }
@@ -133,6 +234,160 @@ if (fs.existsSync(assetsSrc)) {
       assetCount++;
     }
   }
+}
+
+// ---------- Build the knowledge graph ----------
+const documentsByRepoPath = new Map(documents.map((document) => [document.repoPath, document]));
+const unresolvedReferences = [];
+const edgeMap = new Map();
+
+function cleanReference(value) {
+  return value.split(/[?#]/, 1)[0].trim().replace(/\\/g, '/');
+}
+
+function viewerRoute(value) {
+  if (!value.startsWith('/')) return { handled: false };
+  const pathname = cleanReference(value);
+  if (!pathname || pathname.startsWith('/assets/')) return { handled: true, ignored: true };
+  const slug = pathname === '/' ? 'index' : pathname.replace(/^\/+|\/+$/g, '');
+  return { handled: true, target: documentsBySlug.get(slug) };
+}
+
+function markdownPath(value) {
+  const cleaned = cleanReference(value).replace(/^\.\//, '').replace(/^\/+/, '');
+  if (!cleaned) return '';
+  return cleaned.endsWith('.md') ? cleaned : `${cleaned}.md`;
+}
+
+function repoDocument(candidate) {
+  const normalized = path.posix.normalize(candidate);
+  if (normalized === '..' || normalized.startsWith('../')) return undefined;
+  return documentsByRepoPath.get(normalized);
+}
+
+function resolveSourceReference(value) {
+  const route = viewerRoute(value);
+  if (route.handled) return route;
+
+  const cleaned = markdownPath(value).replace(/^sources\//, '');
+  const target = repoDocument(`sources/${cleaned}`);
+  return { handled: true, target };
+}
+
+function resolveContentReference(document, value) {
+  const route = viewerRoute(value);
+  if (route.handled) return route;
+
+  const cleaned = markdownPath(value);
+  if (!cleaned) return { handled: true };
+
+  if (cleaned.startsWith('sources/')) {
+    return { handled: true, target: repoDocument(cleaned) };
+  }
+  if (cleaned.startsWith('wiki/')) {
+    return { handled: true, target: repoDocument(cleaned) };
+  }
+
+  if (document.kind === 'wiki') {
+    const candidates = [];
+    if (document.contentDir) candidates.push(`wiki/${document.contentDir}/${cleaned}`);
+    candidates.push(`wiki/${cleaned}`);
+    for (const candidate of candidates) {
+      const target = repoDocument(candidate);
+      if (target) return { handled: true, target };
+    }
+    return { handled: true };
+  }
+
+  return { handled: true, target: repoDocument(`sources/${cleaned}`) };
+}
+
+function observe(document, target, relation) {
+  if (!target || target.slug === document.slug) return;
+  const [source, destination] = [document.slug, target.slug].sort((a, b) => a.localeCompare(b));
+  const id = `${source}::${destination}`;
+  let edge = edgeMap.get(id);
+  if (!edge) {
+    edge = { id, source, target: destination, relations: new Set() };
+    edgeMap.set(id, edge);
+  }
+  edge.relations.add(relation);
+}
+
+function resolveAndObserve(document, value, relation, resolver) {
+  const result = resolver(value);
+  if (result.ignored) return;
+  if (result.target) {
+    observe(document, result.target, relation);
+    return;
+  }
+  unresolvedReferences.push({ from: document.repoPath, relation, value });
+}
+
+for (const document of documents) {
+  if (document.catalog) continue;
+
+  for (const value of stringList(document.data, 'sources')) {
+    resolveAndObserve(document, value, 'sources', resolveSourceReference);
+  }
+  for (const value of stringList(document.data, 'related')) {
+    resolveAndObserve(document, value, 'related', (reference) =>
+      resolveContentReference(document, reference),
+    );
+  }
+
+  const parent = stringValue(document.data, 'parent');
+  if (parent) {
+    resolveAndObserve(document, parent, 'parent', (reference) =>
+      resolveContentReference(document, reference),
+    );
+  }
+
+  for (const value of new Set(markdownLinks(document.body))) {
+    if (!value.startsWith('/')) continue;
+    const result = viewerRoute(value);
+    if (result.ignored) continue;
+    if (result.target) {
+      observe(document, result.target, 'body');
+    } else {
+      unresolvedReferences.push({ from: document.repoPath, relation: 'body', value });
+    }
+  }
+}
+
+const graph = {
+  version: 1,
+  nodes: documents
+    .map((document) => ({
+      id: document.slug,
+      title: document.title,
+      href: document.href,
+      kind: document.kind,
+      ...(document.pageType ? { pageType: document.pageType } : {}),
+      catalog: document.catalog,
+    }))
+    .sort((a, b) => a.id.localeCompare(b.id)),
+  edges: [...edgeMap.values()]
+    .map((edge) => ({
+      id: edge.id,
+      source: edge.source,
+      target: edge.target,
+      relations: [...edge.relations].sort(),
+    }))
+    .sort((a, b) => a.id.localeCompare(b.id)),
+};
+
+fs.mkdirSync(path.dirname(graphFile), { recursive: true });
+fs.writeFileSync(graphFile, JSON.stringify(graph, null, 2) + '\n');
+
+if (unresolvedReferences.length > 0) {
+  const preview = unresolvedReferences
+    .slice(0, 5)
+    .map((reference) => `${reference.from}: ${reference.relation} → ${reference.value}`)
+    .join('\n  ');
+  console.warn(
+    `knowledge graph: ${unresolvedReferences.length} unresolved reference(s)${preview ? `\n  ${preview}` : ''}`,
+  );
 }
 
 // ---------- Build the sidebar ----------
@@ -163,10 +418,10 @@ function sectionLabel(dir) {
 
 // Group wiki entries by their first path segment.
 const byGroup = new Map();
-for (const e of wikiEntries) {
-  const key = e.dir.split('/')[0]; // '' for top-level
+for (const entry of wikiEntries) {
+  const key = entry.dir.split('/')[0]; // '' for top-level
   if (!byGroup.has(key)) byGroup.set(key, []);
-  byGroup.get(key).push(e);
+  byGroup.get(key).push(entry);
 }
 
 function sortItems(items, topLevel) {
@@ -182,7 +437,11 @@ function sortItems(items, topLevel) {
       if (ra !== rb) return ra - rb;
       return a.label.localeCompare(b.label);
     })
-    .map((e) => ({ slug: e.slug, label: e.label, ...(e.badge ? { badge: e.badge } : {}) }));
+    .map((entry) => ({
+      slug: entry.slug,
+      label: entry.label,
+      ...(entry.badge ? { badge: entry.badge } : {}),
+    }));
 }
 
 const sections = [];
@@ -198,25 +457,25 @@ for (const dir of WIKI_SECTION_ORDER) {
   });
 }
 // Any unknown wiki groups, alphabetically.
-for (const dir of [...byGroup.keys()].filter((d) => !seenGroups.has(d)).sort()) {
+for (const dir of [...byGroup.keys()].filter((dir) => !seenGroups.has(dir)).sort()) {
   sections.push({ title: sectionLabel(dir), items: sortItems(byGroup.get(dir), false) });
 }
 
 // Sources section last. Index first, then the rest by order/label.
 if (sourceEntries.length > 0) {
-  const index = sourceEntries.find((e) => e.isIndex);
+  const index = sourceEntries.find((entry) => entry.isIndex);
   const rest = sourceEntries
-    .filter((e) => !e.isIndex)
+    .filter((entry) => !entry.isIndex)
     .sort((a, b) => {
       const ra = a.order ?? 990;
       const rb = b.order ?? 990;
       if (ra !== rb) return ra - rb;
       return a.label.localeCompare(b.label);
     });
-  const items = [...(index ? [index] : []), ...rest].map((e) => ({
-    slug: e.slug,
-    label: e.label,
-    ...(e.badge ? { badge: e.badge } : {}),
+  const items = [...(index ? [index] : []), ...rest].map((entry) => ({
+    slug: entry.slug,
+    label: entry.label,
+    ...(entry.badge ? { badge: entry.badge } : {}),
   }));
   sections.push({ title: 'Sources', items });
 }
@@ -226,5 +485,5 @@ fs.writeFileSync(sidebarFile, JSON.stringify(sections, null, 2) + '\n');
 
 console.log(
   `synced: ${sourcesCount} source(s), ${wikiCount} wiki page(s), ${assetCount} asset(s); ` +
-    `sidebar: ${sections.length} section(s)`,
+    `sidebar: ${sections.length} section(s); graph: ${graph.nodes.length} node(s), ${graph.edges.length} edge(s)`,
 );

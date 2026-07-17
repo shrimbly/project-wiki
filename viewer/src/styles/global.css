@@ -337,6 +337,248 @@ body[data-doc-slug="wiki-open-questions"] .doc-body ul + p {
 .doc-body tr:last-child td { border-bottom: none; }
 .doc-body tr:nth-child(even) td { background: rgba(0, 0, 0, 0.012); }
 
+/* ---------- Knowledge graph ---------- */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.knowledge-graph {
+  width: 100%;
+  margin-bottom: 56px;
+}
+.knowledge-graph-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 14px;
+}
+.knowledge-graph-eyebrow {
+  margin: 0 0 4px;
+  color: var(--text-faint);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.knowledge-graph-header h1 {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1.25;
+}
+.knowledge-graph-summary {
+  max-width: 650px;
+  margin: 8px 0 0;
+  color: var(--text-muted);
+  font-size: 13.5px;
+}
+.knowledge-graph-toolbar {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 6px;
+}
+.knowledge-graph-toolbar button {
+  min-width: 36px;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: #fff;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+.knowledge-graph-toolbar button:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.knowledge-graph-toolbar button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.knowledge-graph-toolbar button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+.knowledge-graph-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 10px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.knowledge-graph-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.knowledge-graph-key {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid var(--border-strong);
+  background: #fff;
+}
+.knowledge-graph-key-wiki {
+  border-color: var(--accent);
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px #fff;
+}
+.knowledge-graph-key-source { border-radius: 2px; }
+
+.knowledge-graph-stage {
+  position: relative;
+  height: clamp(420px, 58vh, 720px);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) + 2px);
+  background: #fff;
+}
+.knowledge-graph-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.knowledge-graph-svg:active { cursor: grabbing; }
+.knowledge-graph-edge {
+  stroke: var(--border-strong);
+  stroke-width: 1.2;
+  stroke-opacity: 0.72;
+  vector-effect: non-scaling-stroke;
+  transition: stroke 100ms ease, stroke-opacity 100ms ease;
+}
+.knowledge-graph-edge.is-active {
+  stroke: var(--accent);
+  stroke-opacity: 0.9;
+  stroke-width: 1.8;
+}
+.knowledge-graph-edge.is-dimmed { stroke-opacity: 0.12; }
+.knowledge-graph-node {
+  cursor: pointer;
+  outline: none;
+  transition: opacity 100ms ease;
+}
+.knowledge-graph-node.is-dimmed { opacity: 0.2; }
+.knowledge-graph-node-hit {
+  fill: transparent;
+  stroke: none;
+}
+.knowledge-graph-node-mark {
+  vector-effect: non-scaling-stroke;
+  transition: fill 100ms ease, stroke 100ms ease, stroke-width 100ms ease;
+}
+.knowledge-graph-node--wiki .knowledge-graph-node-mark {
+  fill: var(--accent);
+  stroke: #fff;
+  stroke-width: 2.5;
+}
+.knowledge-graph-node--source .knowledge-graph-node-mark {
+  fill: #fff;
+  stroke: var(--border-strong);
+  stroke-width: 2;
+}
+.knowledge-graph-node--catalog .knowledge-graph-node-mark {
+  stroke-dasharray: 3 2;
+}
+.knowledge-graph-node:hover .knowledge-graph-node-mark,
+.knowledge-graph-node:focus .knowledge-graph-node-mark,
+.knowledge-graph-node:focus-visible .knowledge-graph-node-mark {
+  stroke: var(--text);
+  stroke-width: 3;
+}
+.knowledge-graph-node.is-neighbor .knowledge-graph-node-mark {
+  stroke-width: 3;
+}
+.knowledge-graph-tooltip {
+  position: absolute;
+  z-index: 2;
+  max-width: min(260px, calc(100% - 20px));
+  padding: 6px 9px;
+  border: 1px solid var(--border-strong);
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.96);
+  color: var(--text);
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.12);
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1.35;
+  pointer-events: none;
+}
+.knowledge-graph-loading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  color: var(--text-faint);
+  font-size: 13px;
+  pointer-events: none;
+}
+.knowledge-graph--ready .knowledge-graph-loading { display: none; }
+.knowledge-graph--failed .knowledge-graph-loading::after { content: " Use the page list below instead."; }
+.knowledge-graph-empty {
+  padding: 28px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  background: var(--bg-doc-meta);
+}
+.knowledge-graph-list {
+  margin-top: 12px;
+  color: var(--text-muted);
+  font-size: 12.5px;
+}
+.knowledge-graph-list summary {
+  width: fit-content;
+  cursor: pointer;
+  color: var(--text-muted);
+}
+.knowledge-graph-list summary:hover { color: var(--accent); }
+.knowledge-graph-list summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+.knowledge-graph-list ul {
+  max-width: var(--content-max);
+  margin: 12px 0 0;
+  padding-left: 20px;
+}
+.knowledge-graph-list li { margin: 7px 0; }
+.knowledge-graph-list-kind {
+  margin-left: 6px;
+  color: var(--text-faint);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.knowledge-graph-list-neighbors {
+  display: block;
+  margin-top: 1px;
+}
+.home-source-index {
+  padding-top: 48px;
+  border-top: 1px solid var(--border);
+}
+
 /* Responsive */
 @media (max-width: 900px) {
   .app { grid-template-columns: 1fr; }
@@ -347,6 +589,33 @@ body[data-doc-slug="wiki-open-questions"] .doc-body ul + p {
     border-bottom: 1px solid var(--border);
   }
   .main { padding: 32px 24px 64px; }
+  .knowledge-graph { margin-bottom: 44px; }
+  .knowledge-graph-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .knowledge-graph-stage { height: clamp(350px, 50vh, 520px); }
+  .home-source-index { padding-top: 36px; }
+}
+
+@media (pointer: coarse) {
+  .knowledge-graph-svg { touch-action: pan-y; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .knowledge-graph-edge,
+  .knowledge-graph-node,
+  .knowledge-graph-node-mark { transition: none; }
+}
+
+@media (forced-colors: active) {
+  .knowledge-graph-node-mark,
+  .knowledge-graph-edge,
+  .knowledge-graph-key { forced-color-adjust: auto; }
+  .knowledge-graph-node--wiki .knowledge-graph-node-mark { fill: Highlight; stroke: Canvas; }
+  .knowledge-graph-node--source .knowledge-graph-node-mark { fill: Canvas; stroke: CanvasText; }
+  .knowledge-graph-edge { stroke: GrayText; }
 }
 
 /* ---------- Annotations ---------- */
