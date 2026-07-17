@@ -480,7 +480,6 @@ async function initGraph(root) {
             .attr('tabindex', 0);
           group.append('circle').attr('class', 'knowledge-graph-node-hit');
           group.append('path').attr('class', 'knowledge-graph-node-mark');
-          group.append('title');
           return group;
         },
         (update) => update,
@@ -506,8 +505,6 @@ async function initGraph(root) {
           .type(node.kind === 'source' ? d3.symbolSquare : d3.symbolCircle)
           .size(node.radius * node.radius * (node.kind === 'source' ? 3.2 : Math.PI))(),
       );
-    nodeSelection.select('title').text((node) => node.title);
-
     nodeSelection
       .on('pointerenter', (event, node) => {
         hoveredId = node.id;
