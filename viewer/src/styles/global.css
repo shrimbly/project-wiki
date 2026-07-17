@@ -541,6 +541,13 @@ body[data-doc-slug="wiki-open-questions"] .doc-body ul + p {
   stroke-dasharray: 1 5;
   stroke-opacity: 0.35;
 }
+/* Neighborhood shows all of its edges at once — rest them in a quiet gray;
+   hovering a node promotes its own edges (.is-active) to the full style. */
+.knowledge-graph[data-graph-mode="neighborhood"]
+  .knowledge-graph-edge:not(.is-active):not(.is-muted) {
+  stroke: var(--border-strong);
+  stroke-opacity: 0.4;
+}
 .knowledge-graph-edge.is-active {
   stroke-opacity: 0.92;
   stroke-width: 1.9;
