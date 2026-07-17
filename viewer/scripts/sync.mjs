@@ -134,6 +134,7 @@ for (const name of fs.readdirSync(sourcesDir)) {
   const badge = stringValue(parsed.data, 'badge');
   const order = numberValue(parsed.data, 'order');
   const pageType = stringValue(parsed.data, 'type');
+  const status = stringValue(parsed.data, 'status');
 
   registerDocument({
     slug,
@@ -141,6 +142,7 @@ for (const name of fs.readdirSync(sourcesDir)) {
     title,
     kind: 'source',
     pageType,
+    status,
     catalog: isIndex || pageType === 'index',
     repoPath,
     contentPath: name,
@@ -200,6 +202,7 @@ function syncWiki(dir, prefix, relPath = '') {
     const badge = stringValue(parsed.data, 'badge');
     const order = numberValue(parsed.data, 'order');
     const pageType = stringValue(parsed.data, 'type');
+    const status = stringValue(parsed.data, 'status');
 
     registerDocument({
       slug,
@@ -207,6 +210,7 @@ function syncWiki(dir, prefix, relPath = '') {
       title,
       kind: 'wiki',
       pageType,
+      status,
       catalog: baseName === 'index' || pageType === 'index',
       repoPath,
       contentPath,
@@ -304,14 +308,19 @@ function resolveContentReference(document, value) {
 
 function observe(document, target, relation) {
   if (!target || target.slug === document.slug) return;
-  const [source, destination] = [document.slug, target.slug].sort((a, b) => a.localeCompare(b));
-  const id = `${source}::${destination}`;
-  let edge = edgeMap.get(id);
-  if (!edge) {
-    edge = { id, source, target: destination, relations: new Set() };
-    edgeMap.set(id, edge);
+
+  let source = document.slug;
+  let destination = target.slug;
+  let separator = '->';
+  if (relation === 'related') {
+    [source, destination] = [source, destination].sort((a, b) => a.localeCompare(b));
+    separator = '::';
   }
-  edge.relations.add(relation);
+
+  const id = `${relation}:${source}${separator}${destination}`;
+  if (!edgeMap.has(id)) {
+    edgeMap.set(id, { id, source, target: destination, relation });
+  }
 }
 
 function resolveAndObserve(document, value, relation, resolver) {
@@ -328,7 +337,7 @@ for (const document of documents) {
   if (document.catalog) continue;
 
   for (const value of stringList(document.data, 'sources')) {
-    resolveAndObserve(document, value, 'sources', resolveSourceReference);
+    resolveAndObserve(document, value, 'source', resolveSourceReference);
   }
   for (const value of stringList(document.data, 'related')) {
     resolveAndObserve(document, value, 'related', (reference) =>
@@ -348,33 +357,42 @@ for (const document of documents) {
     const result = viewerRoute(value);
     if (result.ignored) continue;
     if (result.target) {
-      observe(document, result.target, 'body');
+      observe(document, result.target, 'mention');
     } else {
-      unresolvedReferences.push({ from: document.repoPath, relation: 'body', value });
+      unresolvedReferences.push({ from: document.repoPath, relation: 'mention', value });
     }
   }
 }
 
+function graphCategory(document) {
+  if (document.kind === 'source') return 'source';
+  if (document.catalog) return 'catalog';
+  if (document.pageType) return document.pageType.toLowerCase();
+  return document.contentDir.split('/')[0] || 'wiki';
+}
+
+const defaultFocus =
+  documentsBySlug.get('wiki-overview') ||
+  documents.find((document) => document.kind === 'wiki' && !document.catalog) ||
+  documents.find((document) => !document.catalog) ||
+  documents[0];
+
 const graph = {
-  version: 1,
+  version: 2,
+  defaultFocusId: defaultFocus?.slug,
   nodes: documents
     .map((document) => ({
       id: document.slug,
       title: document.title,
       href: document.href,
       kind: document.kind,
+      category: graphCategory(document),
       ...(document.pageType ? { pageType: document.pageType } : {}),
+      ...(document.status ? { status: document.status } : {}),
       catalog: document.catalog,
     }))
     .sort((a, b) => a.id.localeCompare(b.id)),
-  edges: [...edgeMap.values()]
-    .map((edge) => ({
-      id: edge.id,
-      source: edge.source,
-      target: edge.target,
-      relations: [...edge.relations].sort(),
-    }))
-    .sort((a, b) => a.id.localeCompare(b.id)),
+  edges: [...edgeMap.values()].sort((a, b) => a.id.localeCompare(b.id)),
 };
 
 fs.mkdirSync(path.dirname(graphFile), { recursive: true });

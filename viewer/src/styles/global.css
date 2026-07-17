@@ -355,11 +355,7 @@ body[data-doc-slug="wiki-open-questions"] .doc-body ul + p {
   margin-bottom: 56px;
 }
 .knowledge-graph-header {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 24px;
-  margin-bottom: 14px;
+  margin-bottom: 16px;
 }
 .knowledge-graph-eyebrow {
   margin: 0 0 4px;
@@ -377,78 +373,26 @@ body[data-doc-slug="wiki-open-questions"] .doc-body ul + p {
   line-height: 1.25;
 }
 .knowledge-graph-summary {
-  max-width: 650px;
+  max-width: 680px;
   margin: 8px 0 0;
   color: var(--text-muted);
   font-size: 13.5px;
 }
-.knowledge-graph-toolbar {
-  display: flex;
-  flex: 0 0 auto;
-  gap: 6px;
-}
-.knowledge-graph-toolbar button {
-  min-width: 36px;
-  height: 34px;
-  padding: 0 10px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius);
-  background: #fff;
-  color: var(--text);
-  font: inherit;
-  font-size: 13px;
-  line-height: 1;
-  cursor: pointer;
-}
-.knowledge-graph-toolbar button:hover:not(:disabled) {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-.knowledge-graph-toolbar button:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-.knowledge-graph-toolbar button:disabled {
-  cursor: not-allowed;
-  opacity: 0.45;
-}
-.knowledge-graph-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-  margin-bottom: 10px;
-  color: var(--text-muted);
-  font-size: 12px;
-}
-.knowledge-graph-legend span {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-.knowledge-graph-key {
-  display: inline-block;
-  width: 10px;
-  height: 10px;
-  border: 1.5px solid var(--border-strong);
-  background: #fff;
-}
-.knowledge-graph-key-wiki {
-  border-color: var(--accent);
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 0 2px #fff;
-}
-.knowledge-graph-key-source { border-radius: 2px; }
 
+/* The canvas — a single stage; every control floats on top of it. */
 .knowledge-graph-stage {
   position: relative;
-  height: clamp(420px, 58vh, 720px);
+  min-height: clamp(480px, 62vh, 740px);
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: calc(var(--radius) + 2px);
-  background: #fff;
+  background:
+    radial-gradient(circle at center, rgba(47, 99, 181, 0.03), transparent 60%),
+    #fff;
 }
 .knowledge-graph-svg {
+  position: absolute;
+  inset: 0;
   display: block;
   width: 100%;
   height: 100%;
@@ -458,25 +402,161 @@ body[data-doc-slug="wiki-open-questions"] .doc-body ul + p {
   -webkit-user-select: none;
 }
 .knowledge-graph-svg:active { cursor: grabbing; }
+
+/* On-canvas controls */
+.knowledge-graph-hud {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.knowledge-graph-hud--view { top: 12px; left: 12px; }
+.knowledge-graph-hud--relations {
+  top: 12px;
+  right: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  max-width: 55%;
+}
+.knowledge-graph-hud--zoom { right: 12px; bottom: 12px; }
+
+.knowledge-graph-segmented {
+  display: flex;
+  border-radius: var(--radius);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+}
+.knowledge-graph-segmented button,
+.knowledge-graph-filter,
+.knowledge-graph-hud--zoom button {
+  border: 1px solid var(--border-strong);
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 11.5px;
+  line-height: 1;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+}
+.knowledge-graph-segmented button {
+  height: 28px;
+  padding: 0 11px;
+}
+.knowledge-graph-segmented button:first-child {
+  border-radius: var(--radius) 0 0 var(--radius);
+}
+.knowledge-graph-segmented button:last-child {
+  margin-left: -1px;
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+.knowledge-graph-segmented button[aria-pressed="true"] {
+  position: relative;
+  z-index: 1;
+  border-color: var(--accent);
+  background: var(--accent-light);
+  color: var(--accent);
+}
+.knowledge-graph-hud--zoom button {
+  min-width: 28px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: var(--radius);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  font-size: 13px;
+}
+.knowledge-graph-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 9px;
+  border-radius: 999px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+}
+.knowledge-graph-filter > span {
+  color: var(--text-faint);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.knowledge-graph-filter > i {
+  display: inline-block;
+  width: 14px;
+  border-top: 1.5px solid currentColor;
+}
+.knowledge-graph-filter--parent > i { border-top-style: dotted; }
+.knowledge-graph-filter--source > i { border-top-style: dashed; }
+.knowledge-graph-filter--mention > i {
+  border-top-style: dotted;
+  opacity: 0.65;
+}
+.knowledge-graph-filter[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent-light);
+  color: var(--accent);
+}
+.knowledge-graph-segmented button:hover,
+.knowledge-graph-filter:hover,
+.knowledge-graph-hud--zoom button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.knowledge-graph-segmented button:focus-visible,
+.knowledge-graph-filter:focus-visible,
+.knowledge-graph-hud--zoom button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Cluster + edge + node marks */
+/* font-size is set by the script so labels keep their size across zoom */
+.knowledge-graph-cluster-label {
+  fill: var(--text-faint);
+  stroke: #fff;
+  stroke-width: 4px;
+  stroke-linejoin: round;
+  paint-order: stroke;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-anchor: middle;
+  text-transform: uppercase;
+  pointer-events: none;
+}
 .knowledge-graph-edge {
-  stroke: var(--border-strong);
-  stroke-width: 1.2;
-  stroke-opacity: 0.72;
+  stroke: var(--accent);
+  stroke-width: 1.25;
+  stroke-opacity: 0.5;
   vector-effect: non-scaling-stroke;
-  transition: stroke 100ms ease, stroke-opacity 100ms ease;
+  transition: stroke-opacity 100ms ease, stroke-width 100ms ease;
+}
+.knowledge-graph-edge--parent {
+  stroke: var(--text-muted);
+  stroke-dasharray: 2 3;
+}
+.knowledge-graph-edge--source {
+  stroke: var(--border-strong);
+  stroke-dasharray: 6 4;
+}
+.knowledge-graph-edge--mention {
+  stroke: var(--text-faint);
+  stroke-dasharray: 1 5;
+  stroke-opacity: 0.35;
+}
+/* The whole map carries many more edges — keep them recessive there. */
+.knowledge-graph[data-graph-mode="whole"]
+  .knowledge-graph-edge:not(.is-active):not(.is-muted) {
+  stroke-opacity: 0.28;
 }
 .knowledge-graph-edge.is-active {
-  stroke: var(--accent);
-  stroke-opacity: 0.9;
-  stroke-width: 1.8;
+  stroke-opacity: 0.92;
+  stroke-width: 1.9;
 }
-.knowledge-graph-edge.is-dimmed { stroke-opacity: 0.12; }
+.knowledge-graph-edge.is-muted { stroke-opacity: 0.12; }
 .knowledge-graph-node {
   cursor: pointer;
   outline: none;
   transition: opacity 100ms ease;
 }
-.knowledge-graph-node.is-dimmed { opacity: 0.2; }
+.knowledge-graph-node.is-dimmed { opacity: 0.25; }
 .knowledge-graph-node-hit {
   fill: transparent;
   stroke: none;
@@ -495,26 +575,41 @@ body[data-doc-slug="wiki-open-questions"] .doc-body ul + p {
   stroke: var(--border-strong);
   stroke-width: 2;
 }
-.knowledge-graph-node--catalog .knowledge-graph-node-mark {
-  stroke-dasharray: 3 2;
-}
+.knowledge-graph-node--status-draft .knowledge-graph-node-mark { stroke-dasharray: 3 2; }
+.knowledge-graph-node--status-superseded { opacity: 0.45; }
 .knowledge-graph-node:hover .knowledge-graph-node-mark,
 .knowledge-graph-node:focus .knowledge-graph-node-mark,
-.knowledge-graph-node:focus-visible .knowledge-graph-node-mark {
+.knowledge-graph-node:focus-visible .knowledge-graph-node-mark,
+.knowledge-graph-node.is-hovered .knowledge-graph-node-mark {
   stroke: var(--text);
   stroke-width: 3;
 }
-.knowledge-graph-node.is-neighbor .knowledge-graph-node-mark {
+.knowledge-graph-node.is-neighbor .knowledge-graph-node-mark { stroke-width: 3; }
+.knowledge-graph-node.is-focus .knowledge-graph-node-mark {
+  stroke: var(--text);
   stroke-width: 3;
+  filter: drop-shadow(0 0 4px rgba(47, 99, 181, 0.3));
 }
+.knowledge-graph-node-label {
+  display: none;
+  fill: var(--text);
+  stroke: #fff;
+  stroke-width: 5px;
+  stroke-linejoin: round;
+  paint-order: stroke;
+  font-size: 11.5px;
+  font-weight: 500;
+  pointer-events: none;
+}
+.knowledge-graph-node-label.is-visible { display: block; }
 .knowledge-graph-tooltip {
   position: absolute;
-  z-index: 2;
+  z-index: 3;
   max-width: min(260px, calc(100% - 20px));
   padding: 6px 9px;
   border: 1px solid var(--border-strong);
   border-radius: 5px;
-  background: rgba(255, 255, 255, 0.96);
+  background: rgba(255, 255, 255, 0.97);
   color: var(--text);
   box-shadow: 0 3px 12px rgba(0, 0, 0, 0.12);
   font-size: 12.5px;
@@ -534,6 +629,7 @@ body[data-doc-slug="wiki-open-questions"] .doc-body ul + p {
 }
 .knowledge-graph--ready .knowledge-graph-loading { display: none; }
 .knowledge-graph--failed .knowledge-graph-loading::after { content: " Use the page list below instead."; }
+
 .knowledge-graph-empty {
   padding: 28px;
   border: 1px dashed var(--border-strong);
@@ -570,10 +666,6 @@ body[data-doc-slug="wiki-open-questions"] .doc-body ul + p {
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
-.knowledge-graph-list-neighbors {
-  display: block;
-  margin-top: 1px;
-}
 .home-source-index {
   padding-top: 48px;
   border-top: 1px solid var(--border);
@@ -590,13 +682,20 @@ body[data-doc-slug="wiki-open-questions"] .doc-body ul + p {
   }
   .main { padding: 32px 24px 64px; }
   .knowledge-graph { margin-bottom: 44px; }
-  .knowledge-graph-header {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 14px;
-  }
-  .knowledge-graph-stage { height: clamp(350px, 50vh, 520px); }
+  .knowledge-graph-stage { min-height: 440px; }
   .home-source-index { padding-top: 36px; }
+}
+
+@media (max-width: 680px) {
+  .knowledge-graph-stage { min-height: 400px; height: 56vh; }
+  .knowledge-graph-hud--relations {
+    top: auto;
+    right: auto;
+    bottom: 12px;
+    left: 12px;
+    max-width: calc(100% - 132px);
+    justify-content: flex-start;
+  }
 }
 
 @media (pointer: coarse) {
@@ -612,12 +711,13 @@ body[data-doc-slug="wiki-open-questions"] .doc-body ul + p {
 @media (forced-colors: active) {
   .knowledge-graph-node-mark,
   .knowledge-graph-edge,
-  .knowledge-graph-key { forced-color-adjust: auto; }
+  .knowledge-graph-filter > i { forced-color-adjust: auto; }
   .knowledge-graph-node--wiki .knowledge-graph-node-mark { fill: Highlight; stroke: Canvas; }
   .knowledge-graph-node--source .knowledge-graph-node-mark { fill: Canvas; stroke: CanvasText; }
   .knowledge-graph-edge { stroke: GrayText; }
+  .knowledge-graph-node-label,
+  .knowledge-graph-cluster-label { fill: CanvasText; stroke: Canvas; }
 }
-
 /* ---------- Annotations ---------- */
 /* Highlight is purely visual — no padding, border, or layout impact, so
    it does not disturb line height or break flow across wraps. */

@@ -1,28 +1,35 @@
 ---
-import type { KnowledgeGraph } from '../lib/knowledge-graph';
+import type { KnowledgeGraph, KnowledgeGraphRelation } from '../lib/knowledge-graph';
 
 interface Props {
   graph: KnowledgeGraph;
 }
 
 const { graph } = Astro.props;
-const nodeById = new Map(graph.nodes.map((node) => [node.id, node]));
-const neighborIds = new Map(graph.nodes.map((node) => [node.id, new Set<string>()]));
+const pages = graph.nodes.filter((node) => !node.catalog).sort((a, b) => a.title.localeCompare(b.title));
+const pageIds = new Set(pages.map((page) => page.id));
+const edges = graph.edges.filter((edge) => pageIds.has(edge.source) && pageIds.has(edge.target));
 
-for (const edge of graph.edges) {
-  neighborIds.get(edge.source)?.add(edge.target);
-  neighborIds.get(edge.target)?.add(edge.source);
+const relationOrder: KnowledgeGraphRelation[] = ['related', 'parent', 'source', 'mention'];
+const relationLabels: Record<KnowledgeGraphRelation, string> = {
+  related: 'Related',
+  parent: 'Hierarchy',
+  source: 'Sources',
+  mention: 'Mentions',
+};
+const relationCounts = new Map(relationOrder.map((relation) => [relation, 0]));
+for (const edge of edges) {
+  relationCounts.set(edge.relation, (relationCounts.get(edge.relation) ?? 0) + 1);
 }
+const availableRelations = relationOrder.filter((relation) => (relationCounts.get(relation) ?? 0) > 0);
 
-const pages = graph.nodes
-  .map((node) => ({
-    ...node,
-    neighbors: [...(neighborIds.get(node.id) ?? [])]
-      .map((id) => nodeById.get(id))
-      .filter((neighbor) => neighbor !== undefined)
-      .sort((a, b) => a.title.localeCompare(b.title)),
-  }))
-  .sort((a, b) => a.title.localeCompare(b.title));
+function titleCase(value: string) {
+  return value
+    .split(/[-_/]/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
 
 const serializedGraph = JSON.stringify(graph)
   .replace(/</g, '\\u003c')
@@ -32,29 +39,15 @@ const serializedGraph = JSON.stringify(graph)
 
 <section class="knowledge-graph" data-knowledge-graph aria-labelledby="knowledge-graph-title">
   <header class="knowledge-graph-header">
-    <div>
-      <p class="knowledge-graph-eyebrow">Knowledge graph</p>
-      <h1 id="knowledge-graph-title">Explore the wiki</h1>
-      <p class="knowledge-graph-summary">
-        {graph.nodes.length} {graph.nodes.length === 1 ? 'page' : 'pages'} and {graph.edges.length}{' '}
-        {graph.edges.length === 1 ? 'connection' : 'connections'}. Hover or focus a node to see its
-        title; select it to open the page.
-      </p>
-    </div>
-
-    <div class="knowledge-graph-toolbar" aria-label="Knowledge graph controls">
-      <button type="button" data-graph-action="zoom-out" aria-label="Zoom out" disabled={graph.nodes.length === 0}>−</button>
-      <button type="button" data-graph-action="fit" aria-label="Fit graph to view" disabled={graph.nodes.length === 0}>Fit</button>
-      <button type="button" data-graph-action="zoom-in" aria-label="Zoom in" disabled={graph.nodes.length === 0}>+</button>
-    </div>
+    <p class="knowledge-graph-eyebrow">Knowledge graph</p>
+    <h1 id="knowledge-graph-title">Explore the wiki</h1>
+    <p class="knowledge-graph-summary">
+      {pages.length} {pages.length === 1 ? 'page' : 'pages'} clustered by type. Hover a node for its
+      title, click to open the page.
+    </p>
   </header>
 
-  <div class="knowledge-graph-legend" aria-label="Page types">
-    <span><i class="knowledge-graph-key knowledge-graph-key-wiki" aria-hidden="true"></i> Wiki page</span>
-    <span><i class="knowledge-graph-key knowledge-graph-key-source" aria-hidden="true"></i> Source</span>
-  </div>
-
-  {graph.nodes.length > 0 ? (
+  {pages.length > 0 ? (
     <div class="knowledge-graph-stage" data-graph-stage>
       <p class="knowledge-graph-loading">Loading graph…</p>
       <svg
@@ -65,10 +58,39 @@ const serializedGraph = JSON.stringify(graph)
       >
         <title id="knowledge-graph-svg-title">Interactive map of wiki pages</title>
         <desc id="knowledge-graph-svg-description">
-          Connected pages are joined by lines. Use Tab to move between pages, Enter to open a page,
-          and the controls above to zoom or fit the graph.
+          Pages are grouped into clusters by type. Hover or focus a node to see its title, click it
+          to open the page, and use the on-canvas filters to reveal more relationship layers.
         </desc>
       </svg>
+
+      <div class="knowledge-graph-hud knowledge-graph-hud--view">
+        <div class="knowledge-graph-segmented" role="group" aria-label="Graph view">
+          <button type="button" data-graph-mode="whole" aria-pressed="true">Whole map</button>
+          <button type="button" data-graph-mode="neighborhood" aria-pressed="false">Neighborhood</button>
+        </div>
+      </div>
+
+      <div class="knowledge-graph-hud knowledge-graph-hud--relations" role="group" aria-label="Relationship filters">
+        {availableRelations.map((relation) => (
+          <button
+            type="button"
+            class={`knowledge-graph-filter knowledge-graph-filter--${relation}`}
+            data-graph-relation={relation}
+            aria-pressed={relation === 'related' ? 'true' : 'false'}
+          >
+            <i aria-hidden="true"></i>
+            {relationLabels[relation]}
+            <span>{relationCounts.get(relation)}</span>
+          </button>
+        ))}
+      </div>
+
+      <div class="knowledge-graph-hud knowledge-graph-hud--zoom" role="group" aria-label="Zoom controls">
+        <button type="button" data-graph-action="zoom-out" aria-label="Zoom out">−</button>
+        <button type="button" data-graph-action="fit" aria-label="Fit graph to view">Fit</button>
+        <button type="button" data-graph-action="zoom-in" aria-label="Zoom in">+</button>
+      </div>
+
       <div class="knowledge-graph-tooltip" data-graph-tooltip role="tooltip" hidden></div>
       <p class="sr-only" data-graph-status aria-live="polite"></p>
     </div>
@@ -77,24 +99,15 @@ const serializedGraph = JSON.stringify(graph)
   )}
 
   <details class="knowledge-graph-list">
-    <summary>Browse all pages and connections</summary>
+    <summary>Browse the accessible page list</summary>
     <ul>
       {pages.map((page) => (
         <li>
           <a href={page.href}>{page.title}</a>
-          <span class="knowledge-graph-list-kind">{page.kind === 'wiki' ? 'Wiki page' : 'Source'}</span>
-          {page.neighbors.length > 0 ? (
-            <span class="knowledge-graph-list-neighbors">
-              Connected to {page.neighbors.map((neighbor, index) => (
-                <>
-                  {index > 0 && ', '}
-                  <a href={neighbor.href}>{neighbor.title}</a>
-                </>
-              ))}
-            </span>
-          ) : (
-            <span class="knowledge-graph-list-neighbors">No connections</span>
-          )}
+          <span class="knowledge-graph-list-kind">
+            {page.category === 'source' ? 'Source' : titleCase(page.category)}
+            {page.status ? ` · ${titleCase(page.status)}` : ''}
+          </span>
         </li>
       ))}
     </ul>

@@ -1,4 +1,16 @@
 const REDUCED_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)');
+const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
+const CATEGORY_PRIORITY = [
+  'overview',
+  'entity',
+  'concept',
+  'decision',
+  'open-questions',
+  'diagram',
+  'reference',
+  'wiki',
+  'source',
+];
 
 function ready(callback) {
   if (document.readyState === 'loading') {
@@ -16,6 +28,27 @@ function parseGraph(root) {
   } catch {
     return null;
   }
+}
+
+function titleCase(value = '') {
+  return value
+    .split(/[-_/]/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+function categoryLabel(category) {
+  return category === 'source' ? 'Sources' : titleCase(category);
+}
+
+function truncate(value, length = 34) {
+  return value.length > length ? `${value.slice(0, length - 1)}…` : value;
+}
+
+function categoryRank(category) {
+  const rank = CATEGORY_PRIORITY.indexOf(category);
+  return rank < 0 ? CATEGORY_PRIORITY.length : rank;
 }
 
 async function initGraph(root) {
@@ -36,72 +69,41 @@ async function initGraph(root) {
     return;
   }
 
-  const nodes = graph.nodes.map((node) => ({ ...node }));
-  const links = graph.edges.map((edge) => ({ ...edge }));
+  const nodes = graph.nodes
+    .filter((node) => !node.catalog)
+    .map((node) => ({ ...node, radius: node.kind === 'source' ? 6.5 : 8 }));
+  if (nodes.length === 0) return;
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
-  const adjacency = new Map(nodes.map((node) => [node.id, new Set()]));
-  const degree = new Map(nodes.map((node) => [node.id, 0]));
+  const edges = graph.edges.filter(
+    (edge) => edge.source !== edge.target && nodeById.has(edge.source) && nodeById.has(edge.target),
+  );
 
-  for (const link of links) {
-    adjacency.get(link.source)?.add(link.target);
-    adjacency.get(link.target)?.add(link.source);
-    degree.set(link.source, (degree.get(link.source) ?? 0) + 1);
-    degree.set(link.target, (degree.get(link.target) ?? 0) + 1);
-  }
+  const defaultFocusId = nodeById.has(graph.defaultFocusId) ? graph.defaultFocusId : nodes[0].id;
+  let focusId = defaultFocusId;
+  let mode = 'whole';
+  let hoveredId = null;
+  let userMovedViewport = false;
+  let width = 0;
+  let height = 0;
+  let visibleNodes = [];
+  let visibleEdges = [];
+  let neighborIds = new Map();
+  let anchors = new Map();
+  let simulation = null;
+  let nodeSelection = d3.select(null);
+  let edgeSelection = d3.select(null);
 
-  for (const node of nodes) {
-    node.radius = Math.min(17, 7 + Math.sqrt(degree.get(node.id) ?? 0) * 2.4);
-  }
+  const activeRelations = new Set(
+    [...root.querySelectorAll('[data-graph-relation][aria-pressed="true"]')].map(
+      (button) => button.dataset.graphRelation,
+    ),
+  );
 
   const svg = d3.select(svgElement);
   const viewport = svg.append('g').attr('class', 'knowledge-graph-viewport');
+  const clusterLayer = viewport.append('g').attr('class', 'knowledge-graph-clusters').attr('aria-hidden', 'true');
   const edgeLayer = viewport.append('g').attr('class', 'knowledge-graph-edges').attr('aria-hidden', 'true');
   const nodeLayer = viewport.append('g').attr('class', 'knowledge-graph-nodes');
-
-  const edgeSelection = edgeLayer
-    .selectAll('line')
-    .data(links, (link) => link.id)
-    .join('line')
-    .attr('class', 'knowledge-graph-edge');
-
-  const nodeSelection = nodeLayer
-    .selectAll('a')
-    .data(nodes, (node) => node.id)
-    .join('a')
-    .attr('class', (node) =>
-      [
-        'knowledge-graph-node',
-        `knowledge-graph-node--${node.kind}`,
-        node.catalog ? 'knowledge-graph-node--catalog' : '',
-      ]
-        .filter(Boolean)
-        .join(' '),
-    )
-    .attr('href', (node) => node.href)
-    .attr('aria-label', (node) => `Open ${node.title}`)
-    .attr('tabindex', 0);
-
-  nodeSelection
-    .append('circle')
-    .attr('class', 'knowledge-graph-node-hit')
-    .attr('r', (node) => Math.max(16, node.radius + 7));
-
-  nodeSelection
-    .append('path')
-    .attr('class', 'knowledge-graph-node-mark')
-    .attr('d', (node) =>
-      d3
-        .symbol()
-        .type(node.kind === 'source' ? d3.symbolSquare : d3.symbolCircle)
-        .size(node.radius * node.radius * (node.kind === 'source' ? 3.2 : Math.PI))(),
-    );
-
-  nodeSelection.append('title').text((node) => node.title);
-
-  let width = 0;
-  let height = 0;
-  let userMovedViewport = false;
-  let activeNodeId = null;
 
   function measure() {
     const nextWidth = Math.max(320, stage.clientWidth);
@@ -115,107 +117,9 @@ async function initGraph(root) {
 
   measure();
 
-  const linkForce = d3
-    .forceLink(links)
-    .id((node) => node.id)
-    .distance(88)
-    .strength(0.36);
-
-  const simulation = d3
-    .forceSimulation(nodes)
-    .force('link', linkForce)
-    .force('charge', d3.forceManyBody().strength((node) => -120 - node.radius * 5))
-    .force('collide', d3.forceCollide().radius((node) => node.radius + 9).iterations(2))
-    .force('center', d3.forceCenter(width / 2, height / 2))
-    .force('x', d3.forceX(width / 2).strength(0.035))
-    .force('y', d3.forceY(height / 2).strength(0.035))
-    .alphaDecay(0.045);
-
-  function render() {
-    edgeSelection
-      .attr('x1', (link) => link.source.x)
-      .attr('y1', (link) => link.source.y)
-      .attr('x2', (link) => link.target.x)
-      .attr('y2', (link) => link.target.y);
-
-    nodeSelection.attr('transform', (node) => `translate(${node.x},${node.y})`);
-  }
-
-  function setEmphasis(node) {
-    activeNodeId = node?.id ?? null;
-    if (!node) {
-      nodeSelection.classed('is-neighbor', false).classed('is-dimmed', false);
-      edgeSelection.classed('is-active', false).classed('is-dimmed', false);
-      return;
-    }
-
-    const neighbors = adjacency.get(node.id) ?? new Set();
-    nodeSelection
-      .classed('is-neighbor', (candidate) => neighbors.has(candidate.id))
-      .classed('is-dimmed', (candidate) => candidate.id !== node.id && !neighbors.has(candidate.id));
-    edgeSelection
-      .classed('is-active', (link) => link.source.id === node.id || link.target.id === node.id)
-      .classed('is-dimmed', (link) => link.source.id !== node.id && link.target.id !== node.id);
-  }
-
-  function positionTooltip(node, x, y) {
-    tooltip.textContent = node.title;
-    tooltip.hidden = false;
-
-    requestAnimationFrame(() => {
-      const padding = 10;
-      const maxX = Math.max(padding, stage.clientWidth - tooltip.offsetWidth - padding);
-      const maxY = Math.max(padding, stage.clientHeight - tooltip.offsetHeight - padding);
-      tooltip.style.left = `${Math.min(Math.max(x + 12, padding), maxX)}px`;
-      tooltip.style.top = `${Math.min(Math.max(y - tooltip.offsetHeight - 12, padding), maxY)}px`;
-    });
-  }
-
-  function positionTooltipAtNode(node) {
-    const transform = d3.zoomTransform(svgElement);
-    const [x, y] = transform.apply([node.x, node.y]);
-    positionTooltip(node, x, y);
-  }
-
-  function hideTooltip() {
-    tooltip.hidden = true;
-  }
-
-  nodeSelection
-    .on('pointerenter', function (event, node) {
-      setEmphasis(node);
-      const rect = stage.getBoundingClientRect();
-      positionTooltip(node, event.clientX - rect.left, event.clientY - rect.top);
-    })
-    .on('pointermove', function (event, node) {
-      const rect = stage.getBoundingClientRect();
-      positionTooltip(node, event.clientX - rect.left, event.clientY - rect.top);
-    })
-    .on('pointerleave', function () {
-      if (document.activeElement !== this) {
-        hideTooltip();
-        setEmphasis(null);
-      }
-    })
-    .on('focus', function (_event, node) {
-      setEmphasis(node);
-      positionTooltipAtNode(node);
-      const connections = degree.get(node.id) ?? 0;
-      status.textContent = `${node.title}. ${connections} ${connections === 1 ? 'connection' : 'connections'}. Press Enter to open.`;
-    })
-    .on('blur', function () {
-      hideTooltip();
-      setEmphasis(null);
-    })
-    .on('click', function (event, node) {
-      if (!node.suppressClick) return;
-      event.preventDefault();
-      event.stopPropagation();
-    });
-
   const zoom = d3
     .zoom()
-    .scaleExtent([0.28, 4])
+    .scaleExtent([0.25, 4])
     .filter((event) => {
       if (event.type === 'dblclick') return false;
       if (event.type === 'wheel') return true;
@@ -226,65 +130,361 @@ async function initGraph(root) {
     })
     .on('zoom', (event) => {
       viewport.attr('transform', event.transform);
-      if (activeNodeId) {
-        const node = nodeById.get(activeNodeId);
-        if (node && document.activeElement?.closest?.('.knowledge-graph-node')) {
-          positionTooltipAtNode(node);
-        }
-      }
+      syncClusterLabelScale(event.transform.k);
+      if (hoveredId) positionTooltipAtNode(nodeById.get(hoveredId));
     });
 
   svg.call(zoom).on('dblclick.zoom', null);
 
-  const drag = d3
-    .drag()
-    .on('start', (event, node) => {
-      event.sourceEvent?.stopPropagation();
-      node.dragStartX = event.x;
-      node.dragStartY = event.y;
-      node.dragged = false;
-      if (!event.active && !REDUCED_MOTION.matches) simulation.alphaTarget(0.25).restart();
-      node.fx = node.x;
-      node.fy = node.y;
-    })
-    .on('drag', (event, node) => {
-      if (Math.hypot(event.x - node.dragStartX, event.y - node.dragStartY) > 3) node.dragged = true;
-      node.fx = event.x;
-      node.fy = event.y;
-      if (REDUCED_MOTION.matches) render();
-    })
-    .on('end', (event, node) => {
-      if (!event.active && !REDUCED_MOTION.matches) simulation.alphaTarget(0);
+  // Cluster labels keep a constant on-screen size regardless of zoom level.
+  function syncClusterLabelScale(scale = d3.zoomTransform(svgElement).k) {
+    clusterLayer.style('font-size', `${11 / Math.max(0.2, scale)}px`);
+  }
+
+  function nodeVisible(node) {
+    return node.kind !== 'source' || activeRelations.has('source');
+  }
+
+  function compute() {
+    if (!nodeVisible(nodeById.get(focusId))) focusId = defaultFocusId;
+    const candidates = nodes.filter(nodeVisible);
+    const candidateIds = new Set(candidates.map((node) => node.id));
+    const layerEdges = edges.filter(
+      (edge) =>
+        activeRelations.has(edge.relation) &&
+        candidateIds.has(edge.source) &&
+        candidateIds.has(edge.target),
+    );
+
+    if (mode === 'whole') {
+      visibleNodes = candidates;
+      visibleEdges = layerEdges;
+    } else {
+      const keep = new Set([focusId]);
+      for (const edge of layerEdges) {
+        if (edge.source === focusId) keep.add(edge.target);
+        if (edge.target === focusId) keep.add(edge.source);
+      }
+      visibleNodes = candidates.filter((node) => keep.has(node.id));
+      visibleEdges = layerEdges.filter((edge) => keep.has(edge.source) && keep.has(edge.target));
+    }
+
+    neighborIds = new Map(visibleNodes.map((node) => [node.id, new Set()]));
+    for (const edge of visibleEdges) {
+      neighborIds.get(edge.source)?.add(edge.target);
+      neighborIds.get(edge.target)?.add(edge.source);
+    }
+  }
+
+  function clusterAnchors() {
+    const categories = [...new Set(visibleNodes.map((node) => node.category))].sort(
+      (a, b) => categoryRank(a) - categoryRank(b) || a.localeCompare(b),
+    );
+    const positions = new Map();
+    const ring = categories.filter((category) => category !== 'overview');
+    if (categories.includes('overview')) positions.set('overview', { x: 0, y: 0 });
+    const radius = ring.length <= 1 ? 0 : 230 + ring.length * 26;
+    ring.forEach((category, index) => {
+      const angle = -Math.PI / 2 + (index / Math.max(1, ring.length)) * Math.PI * 2;
+      positions.set(category, { x: Math.cos(angle) * radius, y: Math.sin(angle) * radius });
+    });
+    return positions;
+  }
+
+  function seedPositions() {
+    anchors = mode === 'whole' ? clusterAnchors() : new Map();
+    const slotByCategory = new Map();
+
+    visibleNodes.forEach((node, index) => {
       node.fx = null;
       node.fy = null;
-      node.suppressClick = node.dragged;
-      window.setTimeout(() => {
-        node.suppressClick = false;
-      }, 120);
+      if (mode === 'neighborhood') {
+        if (node.id === focusId) {
+          node.x = 0;
+          node.y = 0;
+          node.fx = 0;
+          node.fy = 0;
+          return;
+        }
+        const angle = -Math.PI / 2 + index * GOLDEN_ANGLE;
+        const ring = 140 + 22 * Math.sqrt(index);
+        node.x = Math.cos(angle) * ring;
+        node.y = Math.sin(angle) * ring;
+        return;
+      }
+      const anchor = anchors.get(node.category) ?? { x: 0, y: 0 };
+      const slot = slotByCategory.get(node.category) ?? 0;
+      slotByCategory.set(node.category, slot + 1);
+      const angle = slot * GOLDEN_ANGLE;
+      const spread = 13 * Math.sqrt(slot + 1);
+      node.x = anchor.x + Math.cos(angle) * spread;
+      node.y = anchor.y + Math.sin(angle) * spread;
     });
+  }
 
-  nodeSelection.call(drag);
+  function runSimulation() {
+    simulation?.stop();
+
+    simulation = d3
+      .forceSimulation(visibleNodes)
+      .force(
+        'charge',
+        d3.forceManyBody().strength(mode === 'whole' ? -60 : -260).distanceMax(mode === 'whole' ? 170 : 620),
+      )
+      .force('collide', d3.forceCollide().radius((node) => node.radius + (mode === 'whole' ? 10 : 30)));
+
+    if (mode === 'whole') {
+      // Edges are drawn but deliberately exert no force here — links between
+      // clusters would otherwise stretch the type clumps into each other.
+      simulation
+        .force('x', d3.forceX((node) => (anchors.get(node.category) ?? { x: 0 }).x).strength(0.28))
+        .force('y', d3.forceY((node) => (anchors.get(node.category) ?? { y: 0 }).y).strength(0.28));
+    } else {
+      simulation
+        .force(
+          'link',
+          d3
+            .forceLink(visibleEdges.map((edge) => ({ ...edge })))
+            .id((node) => node.id)
+            .distance(130)
+            .strength(0.4),
+        )
+        .force('x', d3.forceX(0).strength(0.04))
+        .force('y', d3.forceY(0).strength(0.04));
+    }
+
+    simulation.stop();
+    simulation.tick(REDUCED_MOTION.matches ? 300 : 80);
+    positionElements();
+    if (!userMovedViewport) fitGraph(false);
+
+    if (!REDUCED_MOTION.matches) {
+      simulation.on('tick', positionElements);
+      simulation.on('end', () => {
+        if (!userMovedViewport) fitGraph(true);
+      });
+      simulation.alpha(0.25).restart();
+    }
+  }
+
+  function positionElements() {
+    nodeSelection.attr('transform', (node) => `translate(${node.x},${node.y})`);
+    edgeSelection
+      .attr('x1', (edge) => nodeById.get(edge.source)?.x ?? 0)
+      .attr('y1', (edge) => nodeById.get(edge.source)?.y ?? 0)
+      .attr('x2', (edge) => nodeById.get(edge.target)?.x ?? 0)
+      .attr('y2', (edge) => nodeById.get(edge.target)?.y ?? 0);
+    if (mode === 'whole') renderClusterLabels();
+  }
+
+  function renderClusterLabels() {
+    const groups = d3.group(visibleNodes, (node) => node.category);
+    const labels = [...groups.entries()].map(([category, members]) => ({
+      category,
+      count: members.length,
+      x: d3.mean(members, (node) => node.x) ?? 0,
+      y: (d3.min(members, (node) => node.y - node.radius) ?? 0) - 24,
+    }));
+    clusterLayer
+      .selectAll('text')
+      .data(labels, (label) => label.category)
+      .join('text')
+      .attr('class', 'knowledge-graph-cluster-label')
+      .attr('x', (label) => label.x)
+      .attr('y', (label) => label.y)
+      .text((label) => `${categoryLabel(label.category)} · ${label.count}`);
+  }
+
+  function labelVisible(node, neighbors) {
+    if (node.id === hoveredId) return true;
+    if (mode === 'neighborhood') return true;
+    return neighbors?.has(node.id) ?? false;
+  }
+
+  function applyEmphasis() {
+    const activeId = hoveredId;
+    const neighbors = activeId ? neighborIds.get(activeId) ?? new Set() : null;
+
+    edgeSelection
+      .classed('is-active', (edge) => activeId !== null && (edge.source === activeId || edge.target === activeId))
+      .classed('is-muted', (edge) => activeId !== null && edge.source !== activeId && edge.target !== activeId);
+
+    nodeSelection
+      .classed('is-focus', (node) => mode === 'neighborhood' && node.id === focusId)
+      .classed('is-hovered', (node) => node.id === activeId)
+      .classed('is-neighbor', (node) => neighbors?.has(node.id) ?? false)
+      .classed('is-dimmed', (node) => activeId !== null && node.id !== activeId && !neighbors?.has(node.id));
+
+    nodeSelection
+      .select('.knowledge-graph-node-label')
+      .classed('is-visible', (node) => labelVisible(node, neighbors));
+  }
+
+  function activate(node) {
+    if (mode === 'neighborhood' && node.id !== focusId) {
+      focusId = node.id;
+      userMovedViewport = false;
+      update();
+      status.textContent = `${node.title} is now the focus. Showing its direct connections.`;
+      return;
+    }
+    window.location.assign(node.href);
+  }
+
+  function render() {
+    edgeSelection = edgeLayer
+      .selectAll('line')
+      .data(visibleEdges, (edge) => edge.id)
+      .join('line')
+      .attr('class', (edge) => `knowledge-graph-edge knowledge-graph-edge--${edge.relation}`);
+
+    nodeSelection = nodeLayer
+      .selectAll('g.knowledge-graph-node')
+      .data(visibleNodes, (node) => node.id)
+      .join(
+        (enter) => {
+          const group = enter
+            .append('g')
+            .attr('class', 'knowledge-graph-node')
+            .attr('role', 'button')
+            .attr('tabindex', 0);
+          group.append('circle').attr('class', 'knowledge-graph-node-hit');
+          group.append('path').attr('class', 'knowledge-graph-node-mark');
+          group.append('text').attr('class', 'knowledge-graph-node-label');
+          group.append('title');
+          return group;
+        },
+        (update) => update,
+        (exit) => exit.remove(),
+      )
+      .attr('class', (node) =>
+        [
+          'knowledge-graph-node',
+          `knowledge-graph-node--${node.kind}`,
+          `knowledge-graph-node--status-${node.status || 'none'}`,
+        ].join(' '),
+      )
+      .attr('aria-label', (node) =>
+        mode === 'whole' || node.id === focusId
+          ? `${node.title}, ${categoryLabel(node.category)}. Open page.`
+          : `${node.title}, ${categoryLabel(node.category)}. Activate to focus its connections; activate again to open.`,
+      );
+
+    nodeSelection.select('.knowledge-graph-node-hit').attr('r', (node) => Math.max(17, node.radius + 8));
+    nodeSelection
+      .select('.knowledge-graph-node-mark')
+      .attr('d', (node) =>
+        d3
+          .symbol()
+          .type(node.kind === 'source' ? d3.symbolSquare : d3.symbolCircle)
+          .size(node.radius * node.radius * (node.kind === 'source' ? 3.2 : Math.PI))(),
+      );
+    nodeSelection
+      .select('.knowledge-graph-node-label')
+      .attr('text-anchor', 'middle')
+      .attr('x', 0)
+      .attr('y', (node) => node.radius + 15)
+      .text((node) => truncate(node.title));
+    nodeSelection.select('title').text((node) => node.title);
+
+    nodeSelection
+      .on('pointerenter', (event, node) => {
+        hoveredId = node.id;
+        applyEmphasis();
+        positionTooltipFromPointer(node, event);
+      })
+      .on('pointermove', (event, node) => positionTooltipFromPointer(node, event))
+      .on('pointerleave', () => {
+        hoveredId = null;
+        hideTooltip();
+        applyEmphasis();
+      })
+      .on('focus', (_event, node) => {
+        hoveredId = node.id;
+        applyEmphasis();
+        positionTooltipAtNode(node);
+        const connectionCount = neighborIds.get(node.id)?.size ?? 0;
+        status.textContent = `${node.title}. ${connectionCount} visible ${connectionCount === 1 ? 'connection' : 'connections'}.`;
+      })
+      .on('blur', () => {
+        hoveredId = null;
+        hideTooltip();
+        applyEmphasis();
+      })
+      .on('click', (event, node) => {
+        if (node.suppressClick) {
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+        activate(node);
+      })
+      .on('dblclick', (event, node) => {
+        event.preventDefault();
+        window.location.assign(node.href);
+      })
+      .on('keydown', (event, node) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        activate(node);
+      });
+
+    const drag = d3
+      .drag()
+      .on('start', (event, node) => {
+        event.sourceEvent?.stopPropagation();
+        node.dragStartX = event.x;
+        node.dragStartY = event.y;
+        node.dragged = false;
+        node.fx = node.x;
+        node.fy = node.y;
+        if (!REDUCED_MOTION.matches) simulation?.alphaTarget(0.1).restart();
+      })
+      .on('drag', (event, node) => {
+        if (Math.hypot(event.x - node.dragStartX, event.y - node.dragStartY) > 3) node.dragged = true;
+        node.fx = event.x;
+        node.fy = event.y;
+        node.x = event.x;
+        node.y = event.y;
+        if (REDUCED_MOTION.matches || !simulation) positionElements();
+      })
+      .on('end', (_event, node) => {
+        if (!REDUCED_MOTION.matches) simulation?.alphaTarget(0);
+        if (!(mode === 'neighborhood' && node.id === focusId)) {
+          node.fx = null;
+          node.fy = null;
+        }
+        node.suppressClick = node.dragged;
+        window.setTimeout(() => {
+          node.suppressClick = false;
+        }, 140);
+      });
+
+    nodeSelection.call(drag);
+
+    if (mode !== 'whole') clusterLayer.selectAll('*').remove();
+    applyEmphasis();
+  }
 
   function graphBounds() {
-    const positioned = nodes.filter((node) => Number.isFinite(node.x) && Number.isFinite(node.y));
-    if (positioned.length === 0) return null;
+    if (visibleNodes.length === 0) return null;
     return {
-      minX: d3.min(positioned, (node) => node.x - node.radius) ?? 0,
-      maxX: d3.max(positioned, (node) => node.x + node.radius) ?? width,
-      minY: d3.min(positioned, (node) => node.y - node.radius) ?? 0,
-      maxY: d3.max(positioned, (node) => node.y + node.radius) ?? height,
+      minX: d3.min(visibleNodes, (node) => node.x - node.radius - 60) ?? 0,
+      maxX: d3.max(visibleNodes, (node) => node.x + node.radius + 60) ?? width,
+      minY: d3.min(visibleNodes, (node) => node.y - node.radius - 52) ?? 0,
+      maxY: d3.max(visibleNodes, (node) => node.y + node.radius + 34) ?? height,
     };
   }
 
   function fitGraph(animate = true) {
     const bounds = graphBounds();
     if (!bounds) return;
-    const padding = 54;
+    const padding = 30;
     const graphWidth = Math.max(1, bounds.maxX - bounds.minX);
     const graphHeight = Math.max(1, bounds.maxY - bounds.minY);
     const scale = Math.max(
-      0.28,
-      Math.min(2.2, Math.min((width - padding * 2) / graphWidth, (height - padding * 2) / graphHeight)),
+      0.25,
+      Math.min(2.1, Math.min((width - padding * 2) / graphWidth, (height - padding * 2) / graphHeight)),
     );
     const centerX = (bounds.minX + bounds.maxX) / 2;
     const centerY = (bounds.minY + bounds.maxY) / 2;
@@ -298,6 +498,45 @@ async function initGraph(root) {
     } else {
       svg.call(zoom.transform, transform);
     }
+  }
+
+  function update() {
+    hoveredId = null;
+    hideTooltip();
+    compute();
+    seedPositions();
+    render();
+    runSimulation();
+    root.dataset.graphMode = mode;
+  }
+
+  function positionTooltip(node, x, y) {
+    if (!node) return;
+    tooltip.textContent = node.title;
+    tooltip.hidden = false;
+    requestAnimationFrame(() => {
+      const padding = 10;
+      const maxX = Math.max(padding, stage.clientWidth - tooltip.offsetWidth - padding);
+      const maxY = Math.max(padding, stage.clientHeight - tooltip.offsetHeight - padding);
+      tooltip.style.left = `${Math.min(Math.max(x + 12, padding), maxX)}px`;
+      tooltip.style.top = `${Math.min(Math.max(y - tooltip.offsetHeight - 12, padding), maxY)}px`;
+    });
+  }
+
+  function positionTooltipFromPointer(node, event) {
+    const rect = stage.getBoundingClientRect();
+    positionTooltip(node, event.clientX - rect.left, event.clientY - rect.top);
+  }
+
+  function positionTooltipAtNode(node) {
+    if (!node) return;
+    const transform = d3.zoomTransform(svgElement);
+    const [x, y] = transform.apply([node.x, node.y]);
+    positionTooltip(node, x, y);
+  }
+
+  function hideTooltip() {
+    tooltip.hidden = true;
   }
 
   function changeZoom(factor) {
@@ -315,36 +554,41 @@ async function initGraph(root) {
     fitGraph();
   });
 
-  simulation.on('tick', render).on('end', () => {
-    render();
-    if (!userMovedViewport) fitGraph();
+  root.querySelectorAll('[data-graph-mode]').forEach((button) => {
+    button.addEventListener('click', () => {
+      if (mode === button.dataset.graphMode) return;
+      mode = button.dataset.graphMode;
+      root.querySelectorAll('[data-graph-mode]').forEach((candidate) => {
+        candidate.setAttribute('aria-pressed', String(candidate === button));
+      });
+      userMovedViewport = false;
+      update();
+      status.textContent =
+        mode === 'whole'
+          ? 'Showing the whole map, clustered by page type.'
+          : `Showing the pages directly connected to ${nodeById.get(focusId)?.title ?? 'the focus page'}.`;
+    });
   });
 
-  if (REDUCED_MOTION.matches) {
-    simulation.stop();
-    for (let index = 0; index < 280; index++) simulation.tick();
-    render();
-    fitGraph(false);
-  }
+  root.querySelectorAll('[data-graph-relation]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const relation = button.dataset.graphRelation;
+      const pressed = button.getAttribute('aria-pressed') !== 'true';
+      button.setAttribute('aria-pressed', String(pressed));
+      if (pressed) activeRelations.add(relation);
+      else activeRelations.delete(relation);
+      userMovedViewport = false;
+      update();
+    });
+  });
 
   const resizeObserver = new ResizeObserver(() => {
     if (!measure()) return;
-    simulation
-      .force('center', d3.forceCenter(width / 2, height / 2))
-      .force('x', d3.forceX(width / 2).strength(0.035))
-      .force('y', d3.forceY(height / 2).strength(0.035));
-
-    if (REDUCED_MOTION.matches) {
-      simulation.stop();
-      for (let index = 0; index < 80; index++) simulation.tick();
-      render();
-      if (!userMovedViewport) fitGraph(false);
-    } else {
-      simulation.alpha(0.18).restart();
-    }
+    if (!userMovedViewport) fitGraph(false);
   });
   resizeObserver.observe(stage);
 
+  update();
   root.classList.add('knowledge-graph--ready');
 }
 
