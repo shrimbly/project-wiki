@@ -202,7 +202,7 @@ async function initGraph(root) {
       (a, b) => categoryRank(a) - categoryRank(b) || a.localeCompare(b),
     );
     const positions = new Map();
-    const radius = categories.length <= 1 ? 0 : 230 + categories.length * 26;
+    const radius = categories.length <= 1 ? 0 : 150 + categories.length * 20;
     categories.forEach((category, index) => {
       const angle = -Math.PI / 2 + (index / Math.max(1, categories.length)) * Math.PI * 2;
       positions.set(category, { x: Math.cos(angle) * radius, y: Math.sin(angle) * radius });
