@@ -44,7 +44,7 @@ const serializedGraph = JSON.stringify(graph)
 <section class="knowledge-graph" data-knowledge-graph aria-labelledby="knowledge-graph-title">
   <header class="knowledge-graph-header">
     <p class="knowledge-graph-eyebrow">Knowledge graph</p>
-    <h1 id="knowledge-graph-title">Explore the wiki</h1>
+    <h2 id="knowledge-graph-title">Explore the wiki</h2>
     <p class="knowledge-graph-summary">
       {pages.length} {pages.length === 1 ? 'page' : 'pages'} clustered by type. Hover a node to see
       its connections, click to select it, then open it or explore its neighborhood.
@@ -91,9 +91,13 @@ const serializedGraph = JSON.stringify(graph)
       </div>
 
       <div class="knowledge-graph-hud knowledge-graph-hud--zoom" role="group" aria-label="Zoom controls">
-        <button type="button" data-graph-action="zoom-out" aria-label="Zoom out">−</button>
+        <button type="button" data-graph-action="zoom-out" aria-label="Zoom out">
+          <svg class="control-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10" /></svg>
+        </button>
         <button type="button" data-graph-action="fit" aria-label="Fit graph to view">Fit</button>
-        <button type="button" data-graph-action="zoom-in" aria-label="Zoom in">+</button>
+        <button type="button" data-graph-action="zoom-in" aria-label="Zoom in">
+          <svg class="control-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10" /></svg>
+        </button>
       </div>
 
       <a class="knowledge-graph-open" data-graph-open href="#" hidden>

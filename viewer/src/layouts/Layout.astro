@@ -9,6 +9,7 @@ interface Props {
 }
 
 const { title, currentSlug } = Astro.props;
+const annotationsEnabled = import.meta.env.DEV;
 // Read fresh on every render so the dev content-sync watcher (see astro.config.mjs)
 // can reflect edits to wiki/ and sources/ without a server restart.
 const sidebarSections = getSidebar();
@@ -21,11 +22,11 @@ const sidebarSections = getSidebar();
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title} — {site.title}</title>
   </head>
-  <body data-doc-slug={currentSlug}>
+  <body data-doc-slug={currentSlug} data-annotations-enabled={annotationsEnabled ? 'true' : undefined}>
     <div class="app">
       <aside class="sidebar">
         <div class="sidebar-header">
-          <h1 class="brand">{site.title}</h1>
+          <a class="brand" href="/">{site.title}</a>
           <p class="brand-sub">{site.subtitle}</p>
         </div>
         <div class="sidebar-search-wrap">
@@ -53,7 +54,11 @@ const sidebarSections = getSidebar();
                   const isActive = item.slug === currentSlug;
                   return (
                     <li>
-                      <a href={href} class={`nav-link${isActive ? ' active' : ''}`}>
+                      <a
+                        href={href}
+                        class={`nav-link${isActive ? ' active' : ''}`}
+                        aria-current={isActive ? 'page' : undefined}
+                      >
                         <span>{item.label}</span>
                         {item.badge && <span class="nav-badge">{item.badge}</span>}
                       </a>

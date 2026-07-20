@@ -1,4 +1,5 @@
 const REDUCED_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)');
+const COARSE_POINTER = window.matchMedia('(pointer: coarse)');
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 // Meta pages (overview, log) stay out of the graph — the canvas is for content pages.
 const HIDDEN_CATEGORIES = new Set(['overview', 'log']);
@@ -74,7 +75,11 @@ async function initGraph(root) {
 
   const nodes = graph.nodes
     .filter((node) => !node.catalog && !HIDDEN_CATEGORIES.has(node.category))
-    .map((node) => ({ ...node, radius: node.kind === 'source' ? 6.5 : 8 }));
+    .map((node) => ({
+      ...node,
+      radius: node.kind === 'source' ? 6.5 : 8,
+      hitRadius: COARSE_POINTER.matches ? 22 : 20,
+    }));
   if (nodes.length === 0) return;
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
   const edges = graph.edges.filter(
@@ -254,7 +259,12 @@ async function initGraph(root) {
         'charge',
         d3.forceManyBody().strength(mode === 'whole' ? -60 : -120).distanceMax(mode === 'whole' ? 170 : 260),
       )
-      .force('collide', d3.forceCollide().radius((node) => node.radius + (mode === 'whole' ? 10 : 30)))
+      .force(
+        'collide',
+        d3.forceCollide().radius((node) =>
+          Math.max(node.hitRadius, node.radius + (mode === 'whole' ? 10 : 30)),
+        ),
+      )
       .force('x', d3.forceX((node) => (anchors.get(node.category) ?? { x: 0 }).x).strength(0.26))
       .force('y', d3.forceY((node) => (anchors.get(node.category) ?? { y: 0 }).y).strength(0.26));
 
@@ -424,7 +434,7 @@ async function initGraph(root) {
     }
     openButton.hidden = false;
     openButton.href = node.href;
-    if (openTitle) openTitle.textContent = truncate(node.title, 44);
+    if (openTitle) openTitle.textContent = node.title;
   }
 
   function select(id, { announce = true } = {}) {
@@ -479,7 +489,7 @@ async function initGraph(root) {
         `${node.title}, ${categoryLabel(node.category)}. Select to show its connections; select again to open.`,
       );
 
-    nodeSelection.select('.knowledge-graph-node-hit').attr('r', (node) => Math.max(17, node.radius + 8));
+    nodeSelection.select('.knowledge-graph-node-hit').attr('r', (node) => node.hitRadius);
     nodeSelection
       .select('.knowledge-graph-node-mark')
       .attr('d', (node) =>

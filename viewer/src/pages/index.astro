@@ -13,11 +13,11 @@ const title = entry.data.title || 'Sources Index';
 ---
 
 <Layout title={title} currentSlug="index">
+  <header class="doc-header home-header">
+    <h1>{title}</h1>
+  </header>
   <KnowledgeGraph graph={graph} />
   <article class="doc home-source-index">
-    <header class="doc-header">
-      <h1>{title}</h1>
-    </header>
     <div class="doc-body">
       <Content />
     </div>

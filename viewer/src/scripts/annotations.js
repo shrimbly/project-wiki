@@ -182,8 +182,11 @@ function applyAnnotations(annotations) {
       continue;
     }
     const marks = wrapRange(range, { class: 'annot', 'data-id': ann.id });
-    marks.forEach((m) => {
+    marks.forEach((m, index) => {
       m.dataset.comment = ann.comment;
+      m.tabIndex = index === 0 ? 0 : -1;
+      m.setAttribute('role', 'button');
+      m.setAttribute('aria-label', `Comment: ${ann.comment}`);
     });
   }
 
@@ -229,6 +232,24 @@ function setupSelectionUI() {
     pendingSelection = null;
   }
 
+  function positionFab(rect) {
+    const margin = 8;
+    const gap = 8;
+    const viewport = window.visualViewport;
+    const viewportLeft = viewport?.offsetLeft ?? 0;
+    const viewportTop = viewport?.offsetTop ?? 0;
+    const viewportWidth = viewport?.width ?? document.documentElement.clientWidth;
+    const viewportHeight = viewport?.height ?? document.documentElement.clientHeight;
+    const width = fab.offsetWidth;
+    const height = fab.offsetHeight;
+    const centered = rect.left + rect.width / 2 - width / 2;
+    const left = Math.min(Math.max(centered, viewportLeft + margin), viewportLeft + viewportWidth - width - margin);
+    const above = rect.top - height - gap;
+    const top = above >= viewportTop + margin ? above : Math.min(rect.bottom + gap, viewportTop + viewportHeight - height - margin);
+    fab.style.left = `${window.scrollX + left}px`;
+    fab.style.top = `${window.scrollY + top}px`;
+  }
+
   document.addEventListener('selectionchange', () => {
     const sel = window.getSelection();
     if (!sel || sel.isCollapsed || sel.rangeCount === 0) {
@@ -256,13 +277,20 @@ function setupSelectionUI() {
     }
     pendingSelection = { range: range.cloneRange() };
     fab.style.display = 'block';
-    fab.style.top = `${window.scrollY + rect.top - 36}px`;
-    fab.style.left = `${window.scrollX + rect.left + rect.width / 2 - 50}px`;
+    positionFab(rect);
   });
 
   fab.addEventListener('mousedown', (e) => {
     e.preventDefault();
   });
+  const repositionFab = () => {
+    if (!pendingSelection || fab.style.display === 'none') return;
+    positionFab(pendingSelection.range.getBoundingClientRect());
+  };
+  window.addEventListener('resize', repositionFab);
+  window.visualViewport?.addEventListener('resize', repositionFab);
+  window.visualViewport?.addEventListener('scroll', repositionFab);
+
   fab.addEventListener('click', () => {
     if (!pendingSelection) return;
     openComposePopover(pendingSelection);
@@ -281,9 +309,10 @@ function openComposePopover(selection) {
   const prefix = index.total.slice(Math.max(0, offsets.start - PREFIX_LEN), offsets.start);
   const suffix = index.total.slice(offsets.end, offsets.end + SUFFIX_LEN);
 
-  const rect = selection.range.getBoundingClientRect();
   const popover = document.createElement('div');
   popover.className = 'annot-popover compose';
+  popover.setAttribute('role', 'dialog');
+  popover.setAttribute('aria-label', 'Add comment');
   popover.innerHTML = `
     <div class="annot-popover-quote"></div>
     <textarea class="annot-popover-input" placeholder="Add comment…" rows="4"></textarea>
@@ -294,12 +323,13 @@ function openComposePopover(selection) {
   `;
   document.body.appendChild(popover);
   popover.querySelector('.annot-popover-quote').textContent = quote;
-  positionPopover(popover, rect);
+  trackPopover(popover, () => selection.range.getBoundingClientRect());
 
   const textarea = popover.querySelector('textarea');
   textarea.focus();
 
   const close = () => {
+    popover._positionCleanup?.();
     popover.remove();
     window.getSelection()?.removeAllRanges();
   };
@@ -338,6 +368,12 @@ function setupExistingMarkInteraction() {
     e.preventDefault();
     openExistingPopover(mark);
   });
+  document.addEventListener('keydown', (e) => {
+    const mark = e.target.closest && e.target.closest('mark.annot');
+    if (!mark || !docBody?.contains(mark) || (e.key !== 'Enter' && e.key !== ' ')) return;
+    e.preventDefault();
+    openExistingPopover(mark);
+  });
 }
 
 function openExistingPopover(mark) {
@@ -345,9 +381,10 @@ function openExistingPopover(mark) {
   const id = mark.dataset.id;
   const comment = mark.dataset.comment || '';
 
-  const rect = mark.getBoundingClientRect();
   const popover = document.createElement('div');
   popover.className = 'annot-popover existing';
+  popover.setAttribute('role', 'dialog');
+  popover.setAttribute('aria-label', 'Comment');
   popover.innerHTML = `
     <div class="annot-popover-comment"></div>
     <textarea class="annot-popover-input" rows="4" style="display:none"></textarea>
@@ -359,10 +396,19 @@ function openExistingPopover(mark) {
     </div>
   `;
   document.body.appendChild(popover);
-  positionPopover(popover, rect);
   popover.querySelector('.annot-popover-comment').textContent = comment;
+  trackPopover(popover, () => mark.getBoundingClientRect());
+  popover.querySelector('.annot-edit').focus();
 
-  const close = () => popover.remove();
+  const close = () => {
+    popover._positionCleanup?.();
+    popover.remove();
+    mark.focus();
+  };
+
+  popover.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') close();
+  });
 
   popover.querySelector('.annot-delete').addEventListener('click', async () => {
     if (!confirm('Delete this comment?')) return;
@@ -385,6 +431,7 @@ function openExistingPopover(mark) {
     popover.querySelector('.annot-delete').style.display = 'none';
     popover.querySelector('.annot-save').style.display = 'inline-block';
     popover.querySelector('.annot-cancel').style.display = 'inline-block';
+    popover._positionUpdate?.();
     textarea.focus();
     textarea.setSelectionRange(textarea.value.length, textarea.value.length);
   });
@@ -417,24 +464,57 @@ function openExistingPopover(mark) {
 }
 
 function closeAllPopovers() {
-  document.querySelectorAll('.annot-popover').forEach((p) => p.remove());
+  document.querySelectorAll('.annot-popover').forEach((popover) => {
+    popover._positionCleanup?.();
+    popover.remove();
+  });
 }
 
-function positionPopover(popover, anchorRect) {
-  const POPOVER_WIDTH = 320;
-  const margin = 8;
-  let left = window.scrollX + anchorRect.left;
-  if (left + POPOVER_WIDTH > window.scrollX + document.documentElement.clientWidth - margin) {
-    left = window.scrollX + document.documentElement.clientWidth - POPOVER_WIDTH - margin;
-  }
-  if (left < window.scrollX + margin) left = window.scrollX + margin;
-  popover.style.top = `${window.scrollY + anchorRect.bottom + 8}px`;
-  popover.style.left = `${left}px`;
+function trackPopover(popover, getAnchorRect) {
+  const update = () => {
+    if (!popover.isConnected) return;
+    const anchorRect = getAnchorRect();
+    const margin = 8;
+    const gap = 8;
+    const viewport = window.visualViewport;
+    const viewportLeft = viewport?.offsetLeft ?? 0;
+    const viewportTop = viewport?.offsetTop ?? 0;
+    const viewportWidth = viewport?.width ?? document.documentElement.clientWidth;
+    const viewportHeight = viewport?.height ?? document.documentElement.clientHeight;
+    const width = popover.offsetWidth;
+    const height = popover.offsetHeight;
+    const left = Math.min(
+      Math.max(anchorRect.left, viewportLeft + margin),
+      viewportLeft + viewportWidth - width - margin,
+    );
+    const below = anchorRect.bottom + gap;
+    const above = anchorRect.top - height - gap;
+    const top = below + height <= viewportTop + viewportHeight - margin || above < viewportTop + margin
+      ? Math.min(below, viewportTop + viewportHeight - height - margin)
+      : above;
+    popover.style.left = `${window.scrollX + left}px`;
+    popover.style.top = `${window.scrollY + Math.max(viewportTop + margin, top)}px`;
+  };
+
+  update();
+  popover._positionUpdate = update;
+  window.addEventListener('resize', update);
+  window.addEventListener('scroll', update, true);
+  window.visualViewport?.addEventListener('resize', update);
+  window.visualViewport?.addEventListener('scroll', update);
+  popover._positionCleanup = () => {
+    window.removeEventListener('resize', update);
+    window.removeEventListener('scroll', update, true);
+    window.visualViewport?.removeEventListener('resize', update);
+    window.visualViewport?.removeEventListener('scroll', update);
+    popover._positionUpdate = null;
+  };
 }
 
 // ---------- Init ----------
 
 async function init() {
+  if (document.body.dataset.annotationsEnabled !== 'true') return;
   const slug = getSlug();
   if (!slug || !getDocBody()) return;
   setupSelectionUI();

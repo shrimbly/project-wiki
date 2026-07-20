@@ -10,11 +10,16 @@
 // No dependencies — transform math is done by hand.
 
 const FS_ICON =
-  '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>';
+  '<svg class="control-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 2H3a1 1 0 0 0-1 1v3M10 2h3a1 1 0 0 1 1 1v3M6 14H3a1 1 0 0 1-1-1v-3M10 14h3a1 1 0 0 0 1-1v-3"/></svg>';
+const MINUS_ICON = '<svg class="control-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10"/></svg>';
+const PLUS_ICON = '<svg class="control-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg>';
+const CLOSE_ICON = '<svg class="control-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 4 8 8M12 4l-8 8"/></svg>';
 
 let overlay = null;
 let stage = null;
 let canvas = null;
+let returnFocus = null;
+let previousBodyOverflow = '';
 const view = { scale: 1, tx: 0, ty: 0, natW: 1, natH: 1 };
 
 const pointers = new Map();
@@ -26,13 +31,16 @@ function ensureOverlay() {
   overlay = document.createElement('div');
   overlay.className = 'diagram-overlay';
   overlay.hidden = true;
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+  overlay.setAttribute('aria-label', 'Diagram viewer');
   overlay.innerHTML = `
     <div class="diagram-overlay-stage"><div class="diagram-overlay-canvas"></div></div>
     <div class="diagram-overlay-toolbar">
-      <button type="button" data-act="out" title="Zoom out (−)">−</button>
+      <button type="button" data-act="out" title="Zoom out (−)" aria-label="Zoom out">${MINUS_ICON}</button>
       <button type="button" data-act="fit" title="Fit (0)">Fit</button>
-      <button type="button" data-act="in" title="Zoom in (+)">+</button>
-      <button type="button" data-act="close" title="Close (Esc)">✕</button>
+      <button type="button" data-act="in" title="Zoom in (+)" aria-label="Zoom in">${PLUS_ICON}</button>
+      <button type="button" data-act="close" title="Close (Esc)" aria-label="Close diagram viewer">${CLOSE_ICON}</button>
     </div>`;
   document.body.appendChild(overlay);
   stage = overlay.querySelector('.diagram-overlay-stage');
@@ -55,8 +63,18 @@ function ensureOverlay() {
 
   document.addEventListener('keydown', (e) => {
     if (overlay.hidden) return;
-    if (e.key === 'Escape') close();
-    else if (e.key === '+' || e.key === '=') zoomAtCenter(1.25);
+    if (e.key === 'Tab') {
+      const buttons = [...overlay.querySelectorAll('button')];
+      const current = buttons.indexOf(document.activeElement);
+      const next = e.shiftKey
+        ? (current <= 0 ? buttons.length - 1 : current - 1)
+        : (current + 1) % buttons.length;
+      e.preventDefault();
+      buttons[next].focus();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      close();
+    } else if (e.key === '+' || e.key === '=') zoomAtCenter(1.25);
     else if (e.key === '-' || e.key === '_') zoomAtCenter(1 / 1.25);
     else if (e.key === '0') fit();
   });
@@ -150,8 +168,9 @@ function onPointerUp(e) {
   }
 }
 
-function open(svg) {
+function open(svg, invoker) {
   ensureOverlay();
+  returnFocus = invoker || document.activeElement;
   canvas.innerHTML = '';
   const clone = svg.cloneNode(true);
 
@@ -182,18 +201,22 @@ function open(svg) {
   view.natW = natW;
   view.natH = natH;
   overlay.hidden = false;
+  previousBodyOverflow = document.body.style.overflow;
   document.body.style.overflow = 'hidden';
   fit();
+  overlay.querySelector('[data-act="close"]').focus();
 }
 
 function close() {
   if (!overlay || overlay.hidden) return;
   overlay.hidden = true;
   canvas.innerHTML = '';
-  document.body.style.overflow = '';
+  document.body.style.overflow = previousBodyOverflow;
   pointers.clear();
   panLast = null;
   pinchLast = null;
+  returnFocus?.focus();
+  returnFocus = null;
 }
 
 export function addDiagramControls(figure, rendered) {
@@ -205,6 +228,6 @@ export function addDiagramControls(figure, rendered) {
   btn.title = 'Full screen — zoom & pan';
   btn.setAttribute('aria-label', 'View diagram full screen');
   btn.innerHTML = FS_ICON;
-  btn.addEventListener('click', () => open(svg));
+  btn.addEventListener('click', () => open(svg, btn));
   figure.appendChild(btn);
 }

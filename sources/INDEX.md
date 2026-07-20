@@ -1,5 +1,3 @@
-# Sources Index
-
 One-line pointer to each source we've captured. The per-source files are faithful
 summaries — re-fetch from the `url` in their frontmatter if anything is in question.
 

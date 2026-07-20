@@ -3,16 +3,40 @@
   --bg-sidebar: #f4f2ee;
   --bg-code: #f1efea;
   --bg-doc-meta: #f6f4f0;
+  --surface: #fff;
   --text: #1a1a1a;
   --text-muted: #6b6b6b;
-  --text-faint: #9a9a9a;
   --border: #e5e1d9;
   --border-strong: #d4cfc4;
   --accent: #2c5fb8;
+  --accent-hover: #244f96;
   --accent-soft: #e6edf9;
   --warn-bg: #fff3d9;
   --warn-text: #7a5400;
+  --type-page: 1.875rem;
+  --type-h1: 1.5rem;
+  --type-h2: 1.3125rem;
+  --type-h3: 1.125rem;
+  --type-h4: 1rem;
+  --type-h5: 0.9375rem;
+  --type-h6: 0.875rem;
+  --type-body: 1rem;
+  --type-ui: 0.875rem;
+  --type-caption: 0.8125rem;
+  --leading-body: 1.6;
+  --leading-heading: 1.15;
+  --prose-max: 65ch;
+  --radius-sm: 4px;
   --radius: 6px;
+  --radius-lg: 10px;
+  --radius-pill: 999px;
+  --control-target: 40px;
+  --focus-outline: 2px solid var(--accent);
+  --focus-offset: 2px;
+  --transition-fast: 120ms cubic-bezier(0.2, 0, 0, 1);
+  --shadow-control: 0 1px 2px rgb(0 0 0 / 0.08), 0 3px 10px rgb(0 0 0 / 0.08);
+  --shadow-floating: 0 2px 4px rgb(0 0 0 / 0.08), 0 12px 32px rgb(0 0 0 / 0.14);
+  --media-outline: oklch(0 0 0 / 0.1);
   --sidebar-w: 280px;
   --content-max: 760px;
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
@@ -21,19 +45,42 @@
 
 * { box-sizing: border-box; }
 
-html, body {
+html,
+body {
   margin: 0;
   padding: 0;
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-sans);
   font-size: 15px;
-  line-height: 1.6;
+  line-height: var(--leading-body);
+  font-synthesis: none;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-a { color: var(--accent); text-decoration: none; }
-a:hover { text-decoration: underline; }
+::selection {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+a:hover { color: var(--accent-hover); }
+
+button { user-select: none; }
+button:not(:disabled),
+.knowledge-graph-open { transition: color var(--transition-fast), background-color var(--transition-fast), border-color var(--transition-fast), opacity var(--transition-fast), scale var(--transition-fast); }
+button:not(:disabled):active,
+.knowledge-graph-open:active { scale: 0.96; }
+
+:where(a, button, input, textarea, summary, [tabindex]):focus-visible {
+  outline: var(--focus-outline);
+  outline-offset: var(--focus-offset);
+}
 
 .app {
   display: grid;
@@ -58,11 +105,15 @@ a:hover { text-decoration: underline; }
   margin-bottom: 8px;
 }
 .brand {
+  display: block;
+  width: fit-content;
+  color: var(--text);
   font-size: 15px;
   font-weight: 600;
   letter-spacing: -0.01em;
-  margin: 0;
+  line-height: 1.25;
 }
+.brand:hover { color: var(--accent); }
 .brand-sub {
   font-size: 12px;
   color: var(--text-muted);
@@ -79,17 +130,22 @@ a:hover { text-decoration: underline; }
 .sidebar-search {
   display: block;
   width: 100%;
+  min-height: var(--control-target);
   box-sizing: border-box;
   font: inherit;
   font-size: 13px;
-  padding: 6px 30px 6px 10px; /* right room for the / hint */
+  padding: 8px 34px 8px 11px; /* inline-end room for the / hint */
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
   background: var(--bg);
   color: var(--text);
-  outline: none;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
-.sidebar-search::placeholder { color: var(--text-faint); }
+.sidebar-search:focus-visible {
+  outline: var(--focus-outline);
+  outline-offset: var(--focus-offset);
+}
+.sidebar-search::placeholder { color: var(--text-muted); }
 .sidebar-search:focus {
   border-color: var(--accent);
   background: #fff;
@@ -109,7 +165,7 @@ a:hover { text-decoration: underline; }
   font-family: var(--font-mono);
   font-size: 10px;
   line-height: 1;
-  color: var(--text-faint);
+  color: var(--text-muted);
   background: var(--bg-doc-meta);
   border: 1px solid var(--border);
   border-radius: 4px;
@@ -122,7 +178,7 @@ a:hover { text-decoration: underline; }
 .sidebar-no-results {
   padding: 8px 24px;
   font-size: 12.5px;
-  color: var(--text-faint);
+  color: var(--text-muted);
   font-style: italic;
 }
 
@@ -132,7 +188,7 @@ a:hover { text-decoration: underline; }
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--text-faint);
+  color: var(--text-muted);
   margin: 0 0 6px;
   padding: 0 24px;
 }
@@ -143,14 +199,15 @@ a:hover { text-decoration: underline; }
 }
 .nav-link {
   display: flex;
+  min-height: var(--control-target);
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 6px 24px;
+  padding: 8px 24px;
   color: var(--text);
   font-size: 13.5px;
-  border-left: 2px solid transparent;
-  transition: background 80ms ease, border-color 80ms ease;
+  border-inline-start: 2px solid transparent;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
 }
 .nav-link:hover {
   background: rgba(0, 0, 0, 0.04);
@@ -158,7 +215,7 @@ a:hover { text-decoration: underline; }
 }
 .nav-link.active {
   background: var(--accent-soft);
-  border-left-color: var(--accent);
+  border-inline-start-color: var(--accent);
   color: var(--accent);
   font-weight: 500;
 }
@@ -177,7 +234,7 @@ a:hover { text-decoration: underline; }
 .nav-empty {
   padding: 4px 24px 8px;
   font-size: 12.5px;
-  color: var(--text-faint);
+  color: var(--text-muted);
   font-style: italic;
 }
 
@@ -187,155 +244,200 @@ a:hover { text-decoration: underline; }
   min-width: 0; /* fix horizontal overflow inside grid */
 }
 
-.doc {
+.doc,
+.home-header {
   max-width: var(--content-max);
 }
 
 .doc-header { margin-bottom: 32px; }
 .doc-header h1 {
-  font-size: 28px;
-  font-weight: 600;
-  letter-spacing: -0.015em;
-  line-height: 1.25;
+  max-width: 24ch;
   margin: 0 0 16px;
+  font-size: var(--type-page);
+  font-weight: 650;
+  letter-spacing: -0.025em;
+  line-height: var(--leading-heading);
+  text-wrap: balance;
 }
+.home-header { margin-bottom: 28px; }
 
 .doc-meta {
-  background: var(--bg-doc-meta);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 12px 16px;
-  font-size: 13px;
-  color: var(--text-muted);
   display: grid;
-  grid-template-columns: max-content 1fr;
+  grid-template-columns: max-content minmax(0, 1fr);
   gap: 4px 16px;
   margin: 0;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-doc-meta);
+  color: var(--text-muted);
+  font-size: var(--type-caption);
 }
 .doc-meta dt {
-  font-weight: 500;
   color: var(--text);
+  font-weight: 500;
 }
 .doc-meta dd {
   margin: 0;
-  word-break: break-all;
+  overflow-wrap: anywhere;
 }
 .doc-meta a { color: var(--accent); }
 
 /* ---------- Markdown body ---------- */
-.doc-body h1 { font-size: 24px; margin-top: 36px; }
+.doc-body {
+  max-width: var(--content-max);
+  font-size: var(--type-body);
+  line-height: var(--leading-body);
+}
+.doc-body > :where(h1, h2, h3, h4, h5, h6, p, ul, ol, blockquote) {
+  max-width: var(--prose-max);
+}
+.doc-body :where(h1, h2, h3, h4, h5, h6) {
+  font-weight: 650;
+  line-height: var(--leading-heading);
+  text-wrap: balance;
+}
+.doc-body h1 {
+  margin: 40px 0 14px;
+  font-size: var(--type-h1);
+  letter-spacing: -0.02em;
+}
 .doc-body h2 {
-  font-size: 19px;
-  font-weight: 600;
-  margin-top: 32px;
-  margin-bottom: 12px;
-  letter-spacing: -0.01em;
+  margin: 40px 0 12px;
+  font-size: var(--type-h2);
+  letter-spacing: -0.015em;
 }
 .doc-body h3 {
-  font-size: 16px;
-  font-weight: 600;
-  margin-top: 40px;
-  margin-bottom: 8px;
+  margin: 32px 0 10px;
+  font-size: var(--type-h3);
+  letter-spacing: -0.01em;
 }
 .doc-body h4 {
-  font-size: 14px;
-  font-weight: 600;
-  margin-top: 18px;
-  margin-bottom: 6px;
-  color: var(--text-muted);
+  margin: 26px 0 8px;
+  color: var(--text);
+  font-size: var(--type-h4);
 }
-
-.doc-body p { margin: 12px 0; }
+.doc-body h5 {
+  margin: 22px 0 7px;
+  color: var(--text-muted);
+  font-size: var(--type-h5);
+}
+.doc-body h6 {
+  margin: 20px 0 6px;
+  color: var(--text-muted);
+  font-size: var(--type-h6);
+  letter-spacing: 0.01em;
+}
+.doc-body p {
+  margin: 12px 0;
+  text-wrap: pretty;
+}
+.doc-body :where(p, li, dd, blockquote, a) { overflow-wrap: anywhere; }
+.doc-body a {
+  text-decoration-line: underline;
+  text-decoration-thickness: from-font;
+  text-underline-offset: 0.16em;
+  text-underline-position: from-font;
+  text-decoration-skip-ink: auto;
+}
 
 /* Open-questions page: subtle highlight on each "Proposed:" answer block.
    The Proposed paragraph is always the one immediately following a question's
    supporting-fields bullet list. */
 body[data-doc-slug="wiki-open-questions"] .doc-body ul + p {
-  background: #fff7e0;
-  border-left: 3px solid #d9b441;
-  padding: 8px 12px;
-  border-radius: 3px;
   margin: 14px 0 4px;
+  padding: 8px 12px;
+  border-inline-start: 3px solid #d9b441;
+  border-radius: var(--radius-sm);
+  background: #fff7e0;
 }
 
-.doc-body ul, .doc-body ol { padding-left: 22px; margin: 8px 0; }
+.doc-body ul,
+.doc-body ol {
+  margin: 8px 0;
+  padding-inline-start: 22px;
+}
 .doc-body li { margin: 4px 0; }
 
 .doc-body blockquote {
-  border-left: 3px solid var(--border-strong);
   margin: 12px 0;
-  padding: 4px 14px;
-  color: var(--text-muted);
-  background: rgba(0, 0, 0, 0.02);
+  padding: 5px 14px;
+  border-inline-start: 3px solid var(--border-strong);
   border-radius: 0 var(--radius) var(--radius) 0;
+  background: rgb(0 0 0 / 0.02);
+  color: var(--text-muted);
 }
 .doc-body blockquote p { margin: 6px 0; }
 
 .doc-body code {
+  padding: 1.5px 5px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-code);
   font-family: var(--font-mono);
   font-size: 0.88em;
-  background: var(--bg-code);
-  padding: 1.5px 5px;
-  border-radius: 4px;
 }
 .doc-body pre {
-  background: var(--bg-code);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  margin: 16px 0;
   padding: 14px 16px;
   overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-code);
   font-size: 13px;
   line-height: 1.55;
-  margin: 14px 0;
 }
 .doc-body pre code {
-  background: transparent;
   padding: 0;
   border-radius: 0;
+  background: transparent;
   font-size: inherit;
 }
 
 .doc-body hr {
-  border: none;
+  margin: 32px 0;
+  border: 0;
   border-top: 1px solid var(--border);
-  margin: 28px 0;
 }
 
 .doc-body img {
+  display: block;
   max-width: 100%;
   height: auto;
-  border: 1px solid var(--border);
+  margin: 18px 0;
   border-radius: var(--radius);
-  margin: 16px 0;
-  display: block;
+  outline: 1px solid var(--media-outline);
+  outline-offset: -1px;
 }
 
 /* Tables */
 .doc-body table {
+  display: block;
   width: 100%;
-  border-collapse: collapse;
-  font-size: 13.5px;
-  margin: 16px 0;
+  max-width: 100%;
+  margin: 18px 0;
+  overflow-x: auto;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  overflow: hidden;
+  border-collapse: collapse;
+  font-size: 13.5px;
 }
-.doc-body th, .doc-body td {
-  text-align: left;
+.doc-body th,
+.doc-body td {
   padding: 8px 12px;
   border-bottom: 1px solid var(--border);
+  text-align: start;
   vertical-align: top;
 }
 .doc-body th {
   background: var(--bg-doc-meta);
-  font-weight: 600;
-  font-size: 12.5px;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
   color: var(--text-muted);
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
 }
 .doc-body tr:last-child td { border-bottom: none; }
-.doc-body tr:nth-child(even) td { background: rgba(0, 0, 0, 0.012); }
+.doc-body tr:nth-child(even) td { background: rgb(0 0 0 / 0.012); }
 
 /* ---------- Knowledge graph ---------- */
 .sr-only {
@@ -359,18 +461,20 @@ body[data-doc-slug="wiki-open-questions"] .doc-body ul + p {
 }
 .knowledge-graph-eyebrow {
   margin: 0 0 4px;
-  color: var(--text-faint);
+  color: var(--text-muted);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
-.knowledge-graph-header h1 {
+.knowledge-graph-header h2 {
+  max-width: 24ch;
   margin: 0;
-  font-size: 28px;
-  font-weight: 600;
-  letter-spacing: -0.015em;
-  line-height: 1.25;
+  font-size: var(--type-h1);
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: var(--leading-heading);
+  text-wrap: balance;
 }
 .knowledge-graph-summary {
   max-width: 680px;
@@ -387,8 +491,9 @@ body[data-doc-slug="wiki-open-questions"] .doc-body ul + p {
   border: 1px solid var(--border);
   border-radius: calc(var(--radius) + 2px);
   background:
-    radial-gradient(circle at center, rgba(47, 99, 181, 0.03), transparent 60%),
-    #fff;
+    radial-gradient(circle at center, rgb(47 99 181 / 0.03), transparent 60%),
+    var(--surface);
+  container-type: inline-size;
 }
 .knowledge-graph-svg {
   position: absolute;
@@ -424,7 +529,7 @@ body[data-doc-slug="wiki-open-questions"] .doc-body ul + p {
 .knowledge-graph-segmented {
   display: flex;
   border-radius: var(--radius);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  box-shadow: var(--shadow-control);
 }
 .knowledge-graph-segmented button,
 .knowledge-graph-filter,
@@ -437,10 +542,11 @@ body[data-doc-slug="wiki-open-questions"] .doc-body ul + p {
   line-height: 1;
   cursor: pointer;
   backdrop-filter: blur(4px);
+  transition: color var(--transition-fast), background-color var(--transition-fast), border-color var(--transition-fast), scale var(--transition-fast);
 }
 .knowledge-graph-segmented button {
-  height: 28px;
-  padding: 0 11px;
+  min-height: var(--control-target);
+  padding: 0 12px;
 }
 .knowledge-graph-segmented button:first-child {
   border-radius: var(--radius) 0 0 var(--radius);
@@ -453,35 +559,49 @@ body[data-doc-slug="wiki-open-questions"] .doc-body ul + p {
   position: relative;
   z-index: 1;
   border-color: var(--accent);
-  background: var(--accent-light);
+  background: var(--accent-soft);
   color: var(--accent);
 }
 .knowledge-graph-hud--zoom button {
-  min-width: 28px;
-  height: 28px;
-  padding: 0 8px;
+  display: inline-grid;
+  min-width: var(--control-target);
+  min-height: var(--control-target);
+  padding: 0 10px;
+  place-items: center;
   border-radius: var(--radius);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  box-shadow: var(--shadow-control);
   font-size: 13px;
 }
 .knowledge-graph-filter {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  height: 26px;
-  padding: 0 9px;
-  border-radius: 999px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  min-height: var(--control-target);
+  padding: 0 11px;
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-control);
 }
 .knowledge-graph-filter > span {
-  color: var(--text-faint);
+  color: var(--text-muted);
   font-size: 10px;
   font-variant-numeric: tabular-nums;
 }
 .knowledge-graph-filter > i {
   display: inline-block;
-  width: 14px;
+  flex: 0 0 16px;
+  width: 16px;
+  height: 1px;
   border-top: 1.5px solid currentColor;
+}
+.control-icon {
+  display: block;
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 .knowledge-graph-filter--parent > i { border-top-style: dotted; }
 .knowledge-graph-filter--source > i { border-top-style: dashed; }
@@ -491,7 +611,7 @@ body[data-doc-slug="wiki-open-questions"] .doc-body ul + p {
 }
 .knowledge-graph-filter[aria-pressed="true"] {
   border-color: var(--accent);
-  background: var(--accent-light);
+  background: var(--accent-soft);
   color: var(--accent);
 }
 .knowledge-graph-segmented button:hover,
@@ -510,7 +630,7 @@ body[data-doc-slug="wiki-open-questions"] .doc-body ul + p {
 /* Cluster + edge + node marks */
 /* font-size is set by the script so labels keep their size across zoom */
 .knowledge-graph-cluster-label {
-  fill: var(--text-faint);
+  fill: var(--text-muted);
   stroke: #fff;
   stroke-width: 4px;
   stroke-linejoin: round;
@@ -537,7 +657,7 @@ body[data-doc-slug="wiki-open-questions"] .doc-body ul + p {
   stroke-dasharray: 6 4;
 }
 .knowledge-graph-edge--mention {
-  stroke: var(--text-faint);
+  stroke: var(--text-muted);
   stroke-dasharray: 1 5;
   stroke-opacity: 0.35;
 }
@@ -613,7 +733,7 @@ body[data-doc-slug="wiki-open-questions"] .doc-body ul + p {
   border-radius: 5px;
   background: rgba(255, 255, 255, 0.97);
   color: var(--text);
-  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.12);
+  box-shadow: var(--shadow-floating);
   font-size: 12.5px;
   font-weight: 500;
   line-height: 1.35;
@@ -629,11 +749,12 @@ body[data-doc-slug="wiki-open-questions"] .doc-body ul + p {
   align-items: center;
   gap: 7px;
   max-width: min(420px, calc(100% - 150px));
+  min-height: var(--control-target);
   padding: 8px 15px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--accent);
   color: #fff;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.16);
+  box-shadow: var(--shadow-floating);
   font-size: 12.5px;
   font-weight: 500;
   /* A full line box — the title span clips overflow for its ellipsis, and a
@@ -644,8 +765,10 @@ body[data-doc-slug="wiki-open-questions"] .doc-body ul + p {
 }
 .knowledge-graph-open[hidden] { display: none; }
 .knowledge-graph-open [data-graph-open-title] {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .knowledge-graph-open:hover {
   color: #fff;
@@ -661,7 +784,7 @@ body[data-doc-slug="wiki-open-questions"] .doc-body ul + p {
   display: grid;
   place-items: center;
   margin: 0;
-  color: var(--text-faint);
+  color: var(--text-muted);
   font-size: 13px;
   pointer-events: none;
 }
@@ -699,7 +822,7 @@ body[data-doc-slug="wiki-open-questions"] .doc-body ul + p {
 .knowledge-graph-list li { margin: 7px 0; }
 .knowledge-graph-list-kind {
   margin-left: 6px;
-  color: var(--text-faint);
+  color: var(--text-muted);
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -707,6 +830,23 @@ body[data-doc-slug="wiki-open-questions"] .doc-body ul + p {
 .home-source-index {
   padding-top: 48px;
   border-top: 1px solid var(--border);
+}
+
+@container (max-width: 760px) {
+  .knowledge-graph-hud--relations {
+    top: 64px;
+    right: 12px;
+    left: 12px;
+    max-width: none;
+    justify-content: flex-start;
+  }
+}
+
+@container (max-width: 520px) {
+  .knowledge-graph-open {
+    bottom: 64px;
+    max-width: calc(100% - 24px);
+  }
 }
 
 /* Responsive */
@@ -725,30 +865,28 @@ body[data-doc-slug="wiki-open-questions"] .doc-body ul + p {
 }
 
 @media (max-width: 680px) {
-  .knowledge-graph-stage { min-height: 400px; height: 56vh; }
-  .knowledge-graph-hud--relations {
-    top: auto;
-    right: auto;
-    bottom: 12px;
-    left: 12px;
-    max-width: calc(100% - 132px);
-    justify-content: flex-start;
-  }
-  /* Keep the open button clear of the relation chips parked bottom-left. */
-  .knowledge-graph-open {
-    bottom: 52px;
-    max-width: calc(100% - 24px);
-  }
+  .main { padding-inline: 18px; }
+  .knowledge-graph-stage { min-height: 460px; height: 62vh; }
+  .sidebar-search,
+  .annot-popover-input { font-size: 16px; }
+  .doc-meta { grid-template-columns: 1fr; gap: 2px; }
+  .doc-meta dd + dt { margin-top: 8px; }
 }
 
 @media (pointer: coarse) {
+  :root { --control-target: 44px; }
   .knowledge-graph-svg { touch-action: pan-y; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .knowledge-graph-edge,
-  .knowledge-graph-node,
-  .knowledge-graph-node-mark { transition: none; }
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+  button:not(:disabled):active,
+  .knowledge-graph-open:active { scale: 1; }
 }
 
 @media (forced-colors: active) {
@@ -778,8 +916,13 @@ body[data-doc-slug="wiki-open-questions"] .doc-body ul + p {
   -webkit-box-decoration-break: clone;
   transition: background-color 100ms ease;
 }
-.doc-body mark.annot:hover {
+.doc-body mark.annot:hover,
+.doc-body mark.annot:focus-visible {
   background-color: #ffe98a;
+}
+.doc-body mark.annot:focus-visible {
+  outline: var(--focus-outline);
+  outline-offset: 1px;
 }
 
 .annot-fab {
@@ -788,14 +931,16 @@ body[data-doc-slug="wiki-open-questions"] .doc-body ul + p {
   background: #1a1a1a;
   color: #fff;
   border: none;
-  border-radius: 6px;
-  padding: 6px 10px;
+  min-height: var(--control-target);
+  border-radius: var(--radius);
+  padding: 8px 12px;
   font-family: inherit;
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+  box-shadow: var(--shadow-floating);
   transform: translateY(-2px);
+  transition: background-color var(--transition-fast), scale var(--transition-fast);
   white-space: nowrap;
 }
 .annot-fab:hover { background: #000; }
@@ -818,10 +963,12 @@ body[data-doc-slug="wiki-open-questions"] .doc-body ul + p {
   z-index: 101;
   background: #fff;
   border: 1px solid var(--border-strong);
-  border-radius: 8px;
+  width: min(320px, calc(100vw - 16px));
+  max-height: calc(100dvh - 16px);
   padding: 14px;
-  width: 320px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+  overflow-y: auto;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-floating);
   font-size: 13px;
 }
 .annot-popover-quote {
@@ -849,7 +996,7 @@ body[data-doc-slug="wiki-open-questions"] .doc-body ul + p {
   width: 100%;
   resize: vertical;
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   padding: 8px 10px;
   font-family: inherit;
   font-size: 13px;
@@ -869,13 +1016,15 @@ body[data-doc-slug="wiki-open-questions"] .doc-body ul + p {
 }
 .annot-popover-actions button {
   font: inherit;
+  min-height: var(--control-target);
   font-size: 12px;
-  padding: 5px 12px;
+  padding: 7px 12px;
   border: 1px solid var(--border-strong);
   background: #fff;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   color: var(--text);
+  transition: color var(--transition-fast), background-color var(--transition-fast), border-color var(--transition-fast), scale var(--transition-fast);
 }
 .annot-popover-actions button:hover {
   background: var(--bg-doc-meta);
@@ -923,10 +1072,11 @@ body[data-doc-slug="wiki-open-questions"] .doc-body ul + p {
 }
 .mermaid-rendered {
   padding: 20px;
-  background: #fff;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
   overflow-x: auto;
+  border-radius: var(--radius);
+  background: var(--surface);
+  outline: 1px solid var(--media-outline);
+  outline-offset: -1px;
   text-align: center;
 }
 .mermaid-rendered svg {
@@ -940,8 +1090,8 @@ body[data-doc-slug="wiki-open-questions"] .doc-body ul + p {
   position: absolute;
   top: 10px;
   right: 10px;
-  width: 30px;
-  height: 30px;
+  width: var(--control-target);
+  height: var(--control-target);
   padding: 0;
   display: inline-flex;
   align-items: center;
@@ -949,10 +1099,11 @@ body[data-doc-slug="wiki-open-questions"] .doc-body ul + p {
   background: rgba(255, 255, 255, 0.92);
   color: var(--text-muted);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius);
   cursor: pointer;
-  opacity: 0.5;
-  transition: opacity 120ms ease, color 120ms ease, border-color 120ms ease;
+  opacity: 0.68;
+  box-shadow: var(--shadow-control);
+  transition: opacity var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast), scale var(--transition-fast);
 }
 .mermaid-figure:hover .diagram-fs-btn { opacity: 1; }
 .diagram-fs-btn:hover {
@@ -999,15 +1150,18 @@ body[data-doc-slug="wiki-open-questions"] .doc-body ul + p {
   font: inherit;
   font-size: 14px;
   line-height: 1;
-  min-width: 36px;
-  height: 34px;
+  display: inline-grid;
+  min-width: var(--control-target);
+  min-height: var(--control-target);
   padding: 0 10px;
+  place-items: center;
   background: #fff;
   color: var(--text);
   border: 1px solid var(--border-strong);
-  border-radius: 6px;
+  border-radius: var(--radius);
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+  box-shadow: var(--shadow-control);
+  transition: color var(--transition-fast), background-color var(--transition-fast), scale var(--transition-fast);
 }
 .diagram-overlay-toolbar button:hover { background: var(--bg-doc-meta); }
 .mermaid-error {

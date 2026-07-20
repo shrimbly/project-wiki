@@ -15,20 +15,22 @@ async function renderAll() {
     return;
   }
 
+  const rootStyles = getComputedStyle(document.documentElement);
+  const token = (name) => rootStyles.getPropertyValue(name).trim();
+
   mermaidLib.initialize({
     startOnLoad: false,
     theme: 'neutral',
     securityLevel: 'loose',
-    fontFamily:
-      '-apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif',
+    fontFamily: token('--font-sans'),
     themeVariables: {
       fontSize: '14px',
-      primaryColor: '#dceaff',
-      primaryBorderColor: '#2c5fb8',
-      primaryTextColor: '#1a1a1a',
-      lineColor: '#6b6b6b',
-      tertiaryColor: '#fff5c0',
-      background: '#fafaf9',
+      primaryColor: token('--accent-soft'),
+      primaryBorderColor: token('--accent'),
+      primaryTextColor: token('--text'),
+      lineColor: token('--text-muted'),
+      tertiaryColor: token('--warn-bg'),
+      background: token('--bg'),
     },
   });
 
